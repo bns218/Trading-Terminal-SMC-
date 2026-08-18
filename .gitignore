@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+logs/*.log
+logs/*.jsonl
+logs/????-??-??/
+cache/instruments/*.json
+!cache/instruments/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+.pytest_cache/
+.mypy_cache/
+*.egg-info/

@@ -1,0 +1,18 @@
+{
+  "_comment": "NSE/BSE trading holiday calendar. UNVERIFIED SEED DATA — cross-check every date against the official NSE circular (nseindia.com > Market Data > Trading Holidays) before relying on this for live staleness checks. Web sources consulted for the 2026 seed disagreed with each other on the Diwali Laxmi Puja date (one gave 20-21 Oct 2026, another gave 08 Nov 2026) — this is exactly the kind of conflict that must not be silently resolved by guessing. Update this file yourself once verified; the loader in config/market_calendar.py treats every entry as authoritative with no independent checking.",
+  "_format": "List of {\"date\": \"YYYY-MM-DD\", \"name\": str, \"verified\": bool}. Only verified:true dates should be trusted for live staleness/session logic.",
+  "2026": [
+    {"date": "2026-01-26", "name": "Republic Day", "verified": false},
+    {"date": "2026-02-26", "name": "Mahashivratri", "verified": false},
+    {"date": "2026-03-14", "name": "Holi", "verified": false},
+    {"date": "2026-04-06", "name": "Ram Navami", "verified": false},
+    {"date": "2026-04-14", "name": "Dr. Ambedkar Jayanti", "verified": false},
+    {"date": "2026-05-01", "name": "Maharashtra Day", "verified": false},
+    {"date": "2026-05-12", "name": "Buddha Purnima", "verified": false},
+    {"date": "2026-08-15", "name": "Independence Day", "verified": false},
+    {"date": "2026-08-27", "name": "Ganesh Chaturthi", "verified": false},
+    {"date": "2026-10-02", "name": "Gandhi Jayanti", "verified": false},
+    {"date": "2026-11-05", "name": "Gurunanak Jayanti", "verified": false},
+    {"date": "2026-12-25", "name": "Christmas", "verified": false}
+  ]
+}
