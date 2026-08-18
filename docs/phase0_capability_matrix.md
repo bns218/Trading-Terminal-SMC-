@@ -43,7 +43,10 @@ re-check once a docs domain is allow-listed) before Phase 1 auth code is trusted
 Your brief said "verify each against docs rather than trusting me" — here's where the evidence updates your priors:
 
 1. **Option Greeks: a real endpoint exists** (`optionGreek`), not purely a client-side computation. It appears reliable for *live* contracts. We still keep the Black-Scholes/Black-76 fallback for the (currently unverified) cases where the endpoint has no value for a given strike — and we label `source: "api"` vs `source: "computed_bs76"` on every IV/Greek value in the data model, exactly as you specified.
-2. **PCR and OI-buildup have dedicated endpoints too**, but their `datatype` parameter lists look aggregate/curated (fixed buckets like "near/next/far expiry," not "every strike in my chain"). Design decision: **we still compute PCR and OI-buildup client-side from our own constructed chain**, because that gives per-contract granularity and a single consistent OI source. We will not silently substitute the endpoint's aggregate number for our computed one — if you'd rather trust Angel One's own PCR/OI-buildup numbers for the summary widgets and reserve our computation for per-strike detail, tell me and I'll show both with source labels.
+2. **PCR and OI-buildup have dedicated endpoints too**, but their `datatype` parameter lists look aggregate/curated (fixed buckets like "near/next/far expiry," not "every strike in my chain"). **Decision (confirmed by user 2026-08-18): show both.** The data model carries two parallel values for PCR (overall and, where meaningful, per-strike) and for each contract's OI-buildup label:
+   - `pcr_computed` / `oi_buildup_computed` — derived client-side from our own constructed option chain (price-vs-OI-change matrix), `source="computed_chain"`.
+   - `pcr_api` / `oi_buildup_api` — fetched directly from Angel One's PCR / OI-Buildup endpoints, `source="angelone_api"`.
+   Both are surfaced in the UI side by side with their `source` and `computed_at`/`fetched_at` fields on hover, per the "every derived metric carries a source" rule. Neither silently overrides the other. If the two disagree materially, that disagreement is itself useful signal (e.g., stale local chain vs. Angel One's aggregate window) and will be visible, not hidden.
 3. **Gainers/losers confirmed derivatives-OI based**, matching your belief — not a cash-market ranking. `datatype` is one of `PercOIGainers/PercOILosers/PercPriceGainers/PercPriceLosers`, `expirytype` one of `NEAR/NEXT/FAR`.
 4. **Freeze quantity confirmed absent from the instrument master.** Needs the separate NSE contract file, refreshed on its own daily schedule, cached with the same "fallback to yesterday's file" rule as the instrument master.
 5. **Market breadth / sector performance: confirmed no endpoint.** Per your instruction, these are `UNSUPPORTED` unless you approve a specific constituent universe and sector-mapping source for me to hard-configure (not fabricate).
@@ -56,20 +59,21 @@ Your brief said "verify each against docs rather than trusting me" — here's wh
 - SENSEX index token/symbol.
 - Per-endpoint rate limits (quote vs historical vs order vs websocket subscription cap) — needed to size the token-bucket limiter correctly.
 
-**Action needed from you:** either (a) paste the relevant docs pages/sections for the five items above, or (b) confirm you're OK with Phase 1 code reading these values from a `config/` file that starts with conservative placeholder limits, clearly marked "VERIFY AGAINST DOCS," which we tighten once confirmed. I'd default to (b) so we're not blocked, but flag it loudly in code/README rather than presenting guessed limits as verified.
+**Decision (confirmed by user 2026-08-18): conservative placeholder config.** Phase 1 will read these five values from `config/smartapi_limits.py` (or `.yaml`), each entry commented `# VERIFY AGAINST DOCS — placeholder, conservative`, with a startup log line and a dashboard data-health badge that stays visible for any value still in placeholder state. Values will be deliberately conservative (e.g., assume the tighter of any two lookback numbers seen in forum reports, assume a lower rate limit than observed) so the system fails toward "too cautious" rather than toward silently exceeding a real limit. README will list these under "known limitations" until each is confirmed and the placeholder flag is removed.
 
 ---
 
 ## 4. Architecture decision: Streamlit vs FastAPI+SSE
 
-**Recommendation: Streamlit**, under the constraint you already specified (ingestion as a separate process, dashboard as a pure reader off SQLite WAL / Redis, fragment-scoped auto-refresh, dashboard never owns the WebSocket). Reasoning:
+**Decision (confirmed by user 2026-08-18): FastAPI + SSE.**
 
-- Your constraint already neutralizes Streamlit's main failure mode (rerun killing a live connection) by construction — the dashboard doesn't hold anything that reruns can kill.
-- Streamlit's `st.fragment(run_every=...)` gives cheap polling-scoped auto-refresh without rerunning the whole page, which is what the health widgets / charts need.
-- FastAPI+SSE would give more control over partial updates and a materially better multi-user story, but you're building a single-user personal terminal — the extra frontend surface (hand-rolled JS/charting, SSE reconnect logic, auth for the API layer) is real engineering cost for benefits you won't use.
-- If later you want multiple simultaneous viewers, sub-100ms tick-to-pixel latency, or a mobile client, that's the trigger to revisit FastAPI+SSE. Not needed now.
+Same underlying data-ownership rule still applies and is actually simpler to enforce here than under Streamlit: the ingestion service is the only process that ever opens the SmartAPI WebSocket and is the only writer to the SQLite (WAL) / Redis tick+candle store. FastAPI is a separate reader process — it never owns the broker WebSocket either. It exposes:
+- REST endpoints for one-shot reads (positions, journal, instrument search, historical candles for chart load).
+- An SSE stream per logical channel (ticks for the active watchlist, candle-close events, data-health metrics, signal-engine output, risk-manager rejections) that the frontend subscribes to and reconnects to independently, so one dropped stream doesn't take down the whole page.
 
-Going with Streamlit unless you object.
+Frontend: a lightweight single-page app (plain JS/HTML + a charting library, e.g. Lightweight Charts, no heavy framework) served as static files by FastAPI, since this is a personal single-user terminal and a full SPA framework would be unjustified surface area. `EventSource` handles SSE reconnect natively.
+
+Implication for the directory layout in the brief: `app/` becomes the FastAPI service (`app/api/`, `app/sse/`, `app/static/` for the frontend) instead of Streamlit pages. This will be finalized in Phase 8 (dashboard), but auth/session and data-health plumbing built in earlier phases will expose plain Python objects/functions that both a REST handler and an SSE generator can call — no dashboard-specific logic leaks into `broker/` or `engine/`.
 
 ## 5. Dependency resolution
 
