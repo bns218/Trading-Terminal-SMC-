@@ -55,6 +55,28 @@ CREATE TABLE IF NOT EXISTS data_health_events (
     occurred_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_health_events_type_time ON data_health_events(event_type, occurred_at);
+
+CREATE TABLE IF NOT EXISTS trade_journal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instrument_token TEXT NOT NULL,
+    instrument_symbol TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    entry_price TEXT NOT NULL,
+    exit_price TEXT NOT NULL,
+    stop_loss TEXT NOT NULL,
+    target TEXT NOT NULL,
+    pnl_gross TEXT NOT NULL,
+    pnl_net TEXT NOT NULL,
+    charges_total TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    strategy TEXT NOT NULL,
+    entry_reason TEXT NOT NULL,
+    exit_reason TEXT NOT NULL,
+    entry_time TEXT NOT NULL,
+    exit_time TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_journal_entry_time ON trade_journal(entry_time);
 """
 
 
@@ -193,3 +215,53 @@ class TickStore:
                     (event_type, since.astimezone(timezone.utc).isoformat()),
                 ).fetchone()
         return row[0]
+
+    # --- trade journal ---
+
+    def insert_journal_entry(self, entry: "TradeJournalEntry") -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO trade_journal
+                    (instrument_token, instrument_symbol, direction, quantity, entry_price, exit_price,
+                     stop_loss, target, pnl_gross, pnl_net, charges_total, confidence, strategy,
+                     entry_reason, exit_reason, entry_time, exit_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    entry.instrument_token, entry.instrument_symbol, entry.direction.value, entry.quantity,
+                    str(entry.entry_price), str(entry.exit_price), str(entry.stop_loss), str(entry.target),
+                    str(entry.pnl_gross), str(entry.pnl_net), str(entry.charges_total), entry.confidence,
+                    entry.strategy, entry.entry_reason, entry.exit_reason,
+                    entry.entry_time.astimezone(timezone.utc).isoformat(),
+                    entry.exit_time.astimezone(timezone.utc).isoformat(),
+                ),
+            )
+
+    def get_journal_entries(self, limit: int = 500) -> list["TradeJournalEntry"]:
+        from data.models import SignalDirection, TradeJournalEntry
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT instrument_token, instrument_symbol, direction, quantity, entry_price, exit_price,
+                       stop_loss, target, pnl_gross, pnl_net, charges_total, confidence, strategy,
+                       entry_reason, exit_reason, entry_time, exit_time
+                FROM trade_journal ORDER BY entry_time DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        entries = []
+        for row in rows:
+            entries.append(
+                TradeJournalEntry(
+                    instrument_token=row[0], instrument_symbol=row[1], direction=SignalDirection(row[2]),
+                    quantity=row[3], entry_price=Decimal(row[4]), exit_price=Decimal(row[5]),
+                    stop_loss=Decimal(row[6]), target=Decimal(row[7]), pnl_gross=Decimal(row[8]),
+                    pnl_net=Decimal(row[9]), charges_total=Decimal(row[10]), confidence=row[11],
+                    strategy=row[12], entry_reason=row[13], exit_reason=row[14],
+                    entry_time=datetime.fromisoformat(row[15]), exit_time=datetime.fromisoformat(row[16]),
+                )
+            )
+        return entries

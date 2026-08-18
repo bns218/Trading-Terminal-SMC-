@@ -206,3 +206,39 @@ class TradeSignal(BaseModel):
     @classmethod
     def _aware(cls, v: datetime) -> datetime:
         return _reject_naive(v)
+
+
+class OrderSide(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+
+class TradeJournalEntry(BaseModel):
+    """One closed paper trade, persisted in full. Every field the brief asked
+    for: timestamp, instrument, signal, entry, exit, SL, target, P&L gross
+    and net, confidence, strategy, entry reason, exit reason."""
+
+    model_config = ConfigDict(frozen=True)
+
+    instrument_token: str
+    instrument_symbol: str
+    direction: SignalDirection  # BUY or SELL (NO_TRADE never reaches the journal)
+    quantity: int
+    entry_price: Decimal
+    exit_price: Decimal
+    stop_loss: Decimal
+    target: Decimal
+    pnl_gross: Decimal
+    pnl_net: Decimal
+    charges_total: Decimal
+    confidence: float
+    strategy: str
+    entry_reason: str
+    exit_reason: str  # "stop_loss" | "target" | "manual" | "session_close" | ...
+    entry_time: datetime
+    exit_time: datetime
+
+    @field_validator("entry_time", "exit_time")
+    @classmethod
+    def _aware(cls, v: datetime) -> datetime:
+        return _reject_naive(v)

@@ -450,6 +450,72 @@ No credentials or network access needed — pure logic, same as Phases 3-5.
 before being reported here — exactly the value of testing state machines like the risk
 manager thoroughly rather than trusting them by inspection.
 
+## Phase 7 — Paper execution engine + trade journal
+
+What exists after Phase 7:
+
+- `config/charges_config.py` — brokerage + STT + exchange transaction charges + SEBI
+  charges + stamp duty + GST as a configurable schedule, split correctly by buy/sell leg
+  (STT only on the sell leg, stamp duty only on the buy leg, GST only on
+  brokerage+exchange+SEBI — never on STT/stamp duty). **Every percentage except GST (18%,
+  a stable statutory rate) is an explicitly-flagged placeholder** — verify against Angel
+  One's current tariff sheet before trusting net P&L for anything beyond exercising the
+  calculation mechanism.
+- `data/models.py` — `TradeJournalEntry`: every field the brief specified (timestamp,
+  instrument, signal direction, entry, exit, SL, target, P&L gross and net, confidence,
+  strategy, entry reason, exit reason). `data/database.py` persists it in a new
+  `trade_journal` SQLite table, Decimal-as-text like every other money field in this
+  project.
+- `engine/position_manager.py` — `PositionManager`: pending-order and open-position
+  tracking with live unrealized P&L. Mutable by design (unlike the frozen pydantic
+  contracts) since this is genuinely-changing runtime state, not a broker/strategy boundary
+  value.
+- `execution/executor_protocol.py` — the `Executor` protocol, with the fill model stated
+  explicitly in its docstring: an order is PENDING after `submit_order()` and fills only
+  when `on_bar_open()` delivers the next bar's open price — never at the signal-deciding
+  bar's own close, never at an optimistic mid-price.
+- `execution/paper_executor.py` — `PaperExecutor`: the full implementation. Slippage (basis
+  points, configurable) is applied on every fill and is ALWAYS against the trader — a buy
+  fills above the quoted price, a sell fills below it, on both entry and exit. Stop-loss and
+  target monitoring via `on_price_update()`. Every closed position writes a full
+  `TradeJournalEntry` with real computed charges.
+- `execution/live_executor.py` — `LiveExecutor`: every method, including `__init__`, raises
+  `NotImplementedError`. It cannot even be constructed. This is the enforcement mechanism
+  for "TRADING_MODE is hard-wired to PAPER" at the execution layer specifically.
+- `execution/factory.py` — `create_executor()`: the ONE place mode selection happens, from
+  `Settings.trading_mode` (itself `Literal["PAPER"]` since Phase 1 — there is no value you
+  can pass that reaches the live branch).
+
+### How to run it yourself
+
+```bash
+python -m pytest tests/test_charges_config.py tests/test_trade_journal.py tests/test_position_manager.py tests/test_paper_executor.py tests/test_live_executor_and_factory.py -v
+```
+
+No credentials or network access needed — pure logic + local SQLite, same as every phase
+since Phase 3.
+
+### Phase 7 tested/untested
+
+| Component | How tested | Result | Untested because |
+|---|---|---|---|
+| Charges schedule (percentage-vs-flat brokerage cap, STT sell-only, stamp duty buy-only, GST base exclusions, round-trip long and short trades) | `pytest tests/test_charges_config.py` (9 tests) | All pass | — fully tested |
+| Trade journal persistence (insert/retrieve, Decimal precision round-trip, ordering, limit, empty case) | `pytest tests/test_trade_journal.py` (5 tests) against a real SQLite file | All pass | — fully tested |
+| Position manager (pending→open transition, per-instrument filtering, unrealized P&L for both long and short, stop/target hit detection for both directions, close) | `pytest tests/test_position_manager.py` (8 tests) | All pass | — fully tested |
+| PaperExecutor: no optimistic same-bar fill (submitting ≠ filling) | `pytest tests/test_paper_executor.py::test_submit_does_not_immediately_fill` | Passes | — fully tested; this is the specific "never optimistic" guarantee the brief required |
+| PaperExecutor: fill happens on next bar's open, at the ACTUAL bar price (not the signal's originally intended entry) | `pytest tests/test_paper_executor.py::test_fill_happens_on_next_bar_open` | Passes | — fully tested |
+| PaperExecutor: slippage always worse for the trader (buy fills above quote, sell fills below) — exact Decimal arithmetic checked | `pytest tests/test_paper_executor.py` (2 tests) | Both pass | — fully tested |
+| PaperExecutor: stop-loss and target close paths, both writing a correct journal entry | `pytest tests/test_paper_executor.py` (2 tests) | Both pass | — fully tested |
+| PaperExecutor: charges genuinely reduce net P&L below gross on a win, and make a loss worse (not better) | `pytest tests/test_paper_executor.py` (2 tests) | Both pass | — fully tested; confirms charges are actually being subtracted, not just present in the data model |
+| PaperExecutor: manual close, short-trade round trip, journal carries confidence/reason, rejects orders without stop/targets or for NO_TRADE | `pytest tests/test_paper_executor.py` (5 tests) | All pass | — fully tested |
+| `LiveExecutor` cannot even be constructed | `pytest tests/test_live_executor_and_factory.py::test_live_executor_cannot_even_be_constructed` | Passes | — fully tested |
+| `create_executor()` returns `PaperExecutor` for the only reachable `trading_mode` value; `Settings(trading_mode="LIVE")` itself is rejected at construction | `pytest tests/test_live_executor_and_factory.py` (2 tests) | Both pass | — fully tested; together these two tests prove there is no reachable path to `LiveExecutor` from configuration alone |
+| PaperExecutor wired to a live tick/candle feed over a real trading session | Not run | Unknown | Requires Phase 2's live ingestion path (credentials/network), unavailable in this sandbox — the execution mechanism itself is fully tested against synthetic price sequences |
+
+**Bottom line: 285/285 pytest tests pass.** The two guarantees the brief emphasized most for
+this phase — "never an optimistic fill" and "paper mode cannot become live by accident" —
+each have a direct, named test proving them, not just incidental coverage.
+
 ## Known limitations
 
 - **Rate limits and historical-candle lookback windows are unverified placeholders**
@@ -523,6 +589,22 @@ manager thoroughly rather than trusting them by inspection.
   else** — if a cooldown is triggered near midnight, it could theoretically be cleared by
   the day-rollover reset before its configured duration elapses. A minor edge case, not
   fixed, since intraday-only trading makes it unlikely to matter in practice.
+- **All charges-schedule percentages except GST (18%) are placeholders** — see
+  `config/charges_config.py`'s module docstring. Verify against Angel One's current tariff
+  sheet before trusting net P&L figures as real cost estimates.
+- **PaperExecutor only manages ONE target (T1) per position**, not partial profit-booking
+  across T1/T2/T3 the way the signal engine's `TradeSignal.targets` list suggests. A
+  position closes fully at T1 or stop-loss. Scaling out across multiple targets is a
+  reasonable future enhancement, not built here.
+- **PaperExecutor's stop-loss/target check assumes single-tick price updates**, not OHLC
+  bars — if you feed it bar data instead of ticks, feed the bar's adverse extreme (low for a
+  long, high for a short) before its favorable extreme in the same update cycle, to preserve
+  the same "stop wins on ambiguity" convention the Phase 3 backtest harness uses. This isn't
+  enforced by the code itself.
+- **No end-of-session forced close is automatic.** If a position is still open when the
+  market closes, nothing in this phase force-closes it — that has to be triggered
+  externally (e.g. by whatever process drives `on_bar_open`/`on_price_update`, calling
+  `close_position(..., exit_reason="session_close", ...)` itself at 15:30 IST).
 - **The Phase 3 backtest harness is intentionally minimal**: one open trade at a time, next-
   bar-open fills, no brokerage/slippage/lot-size modeling, and a conservative same-bar
   stop-and-target-both-hit tiebreak (assumes the worse outcome, since OHLC data alone can't
