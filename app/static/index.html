@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Trading Terminal (Paper)</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="demo-banner">DEMO DATA — NOT LIVE MARKET DATA — for UI demonstration only</div>
+  <header>
+    <div>
+      <h1>Trading Terminal <span class="mode-badge" id="mode-badge">PAPER</span></h1>
+    </div>
+    <div id="controls">
+      <input id="token-input" placeholder="Instrument token" />
+      <select id="timeframe-select">
+        <option value="1min">1m</option>
+        <option value="3min">3m</option>
+        <option value="5min">5m</option>
+        <option value="15min">15m</option>
+        <option value="30min">30m</option>
+        <option value="60min">60m</option>
+      </select>
+      <button id="load-btn">Load</button>
+      <button id="kill-switch-btn">Kill Switch: OFF</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="chart-panel">
+      <canvas id="chart-canvas"></canvas>
+      <div id="legend">
+        <span><span class="legend-dot" style="background:#5b8def"></span>EMA 9</span>
+        <span><span class="legend-dot" style="background:#e8b339"></span>EMA 20</span>
+        <span><span class="legend-dot" style="background:#3ecf8e"></span>Bullish pattern</span>
+        <span><span class="legend-dot" style="background:#ef5a5a"></span>Bearish pattern</span>
+      </div>
+    </div>
+
+    <div id="sidebar">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="positions">Positions</button>
+        <button class="tab-btn" data-tab="journal">Journal</button>
+        <button class="tab-btn" data-tab="health">Data Health</button>
+      </div>
+
+      <div id="positions" class="tab-panel active">
+        <table>
+          <thead><tr><th>Symbol</th><th>Dir</th><th>Qty</th><th>Entry</th><th>LTP</th><th>P&amp;L</th></tr></thead>
+          <tbody id="positions-body"></tbody>
+        </table>
+        <div id="positions-empty" class="empty-state" style="display:none">No open positions.</div>
+      </div>
+
+      <div id="journal" class="tab-panel">
+        <table>
+          <thead><tr><th>Symbol</th><th>Dir</th><th>Net P&amp;L</th><th>Exit</th></tr></thead>
+          <tbody id="journal-body"></tbody>
+        </table>
+        <div id="journal-empty" class="empty-state" style="display:none">No trades yet.</div>
+      </div>
+
+      <div id="health" class="tab-panel">
+        <div id="health-body"></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

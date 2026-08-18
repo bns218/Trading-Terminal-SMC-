@@ -516,8 +516,98 @@ since Phase 3.
 this phase — "never an optimistic fill" and "paper mode cannot become live by accident" —
 each have a direct, named test proving them, not just incidental coverage.
 
+## Phase 8 — Dashboard (market overview, charts with overlays, positions, journal, data health)
+
+What exists after Phase 8 — the final phase in the build order:
+
+- `app/main.py` — FastAPI application, per the confirmed Phase 0 architecture decision
+  (FastAPI + SSE over Streamlit). The dashboard is a pure reader: every route reads from
+  the SQLite store or runs pure `strategies/` computation on data already there — nothing
+  in `app/` opens a broker connection or a WebSocket. `python -m app.main --demo` serves
+  the dashboard from clearly-labelled synthetic data with **zero credentials or network
+  access needed**; `python -m app.main` serves real data once a live ingestion process
+  (Phase 2) is writing to the same store.
+- `app/demo_data.py` — the `--demo` flag's data: a synthetic 90-bar candle series (session-
+  anchored, seeded RNG for reproducibility), 4 journal entries, and 3 data-health events,
+  every one of them carrying `DEMO`/`[DEMO DATA]` in its symbol or reason text so nothing
+  can be mistaken for live output, per the ground rule against presenting synthetic data as
+  real.
+- `app/api/routes.py` — REST endpoints: `/api/candles/{token}` (with multi-timeframe
+  resampling via Phase 3's `data/resample.py`), `/api/indicators/{token}` (EMA/RSI/MACD/
+  ATR/Bollinger/VWAP from Phase 3), `/api/candles/{token}/overlays` (candlestick + SMC
+  BOS/CHOCH + fair value gaps + chart patterns from Phase 4, computed live on each
+  request), `/api/positions`, `/api/journal` (Phase 7's trade journal), `/api/data-health/
+  {token}` (Phase 2's health aggregator), `/api/risk/kill-switch`, `/api/instruments/
+  search`.
+- `app/sse/streams.py` — SSE generators for tick and data-health streams, polling the
+  store on an interval (never owning a broker connection, per the architecture decision).
+  Built with a `max_iterations` testability seam so the core polling logic is unit-testable
+  without needing a real client connection or disconnect.
+- `app/static/` — a self-contained vanilla HTML/CSS/JS frontend (no framework, no CDN
+  dependency) with a canvas-drawn candlestick chart, EMA overlay lines, pattern markers
+  color-coded by direction, tabbed positions/journal/data-health panels, a kill-switch
+  toggle, and a persistent demo-mode banner.
+
+**The dashboard was actually run in a real browser, not just covered by tests.** I started
+`python -m app.main --demo`, drove it with a real headless Chromium instance (Playwright,
+pre-installed in this environment), and screenshotted the result — the chart renders real
+candles with EMA9/EMA20 lines and pattern markers, the Positions/Journal/Data-Health tabs
+switch and populate correctly, the kill-switch button toggles and persists to the backend,
+and multi-timeframe resampling (1m → 15m, 90 bars → 6 bars) works end to end. The only
+network request that 404'd was the browser's own automatic `/favicon.ico` probe — every
+real API call returned 200 OK, confirmed from the server's own access log, not just from
+the client's perspective.
+
+### How to run it yourself
+
+```bash
+python -m app.main --demo
+# open http://127.0.0.1:8000 in a browser
+```
+
+Run the test suite (311 tests total):
+
+```bash
+python -m pytest tests/test_demo_data.py tests/test_sse_streams.py tests/test_app_api.py -v
+```
+
+### Phase 8 tested/untested
+
+| Component | How tested | Result | Untested because |
+|---|---|---|---|
+| Demo data generation (candle count, OHLC validity, journal entries, health events, reproducibility with a fixed seed) | `pytest tests/test_demo_data.py` (6 tests) | All pass | — fully tested |
+| SSE stream generators (finite termination via the testability seam, correct event shape, graceful handling of an unknown token) | `pytest tests/test_sse_streams.py` (3 tests) | All pass | — fully tested at the generator level; the actual HTTP streaming endpoint (`/api/stream/...`) was not driven through a real long-lived HTTP connection in the test suite — see below |
+| Every REST endpoint (`meta`, `candles` at multiple timeframes including rejection of an unsupported one, `indicators` with correct NaN→null JSON serialization, `overlays`, `positions`, `journal` with correct Decimal→string serialization, `data-health`, `kill-switch` round-trip, `instruments/search`, static file serving, and live-mode-vs-demo-mode differences) | `pytest tests/test_app_api.py` (17 tests) against a real `FastAPI` app via `TestClient` | All pass | — fully tested |
+| The dashboard actually running end-to-end in a real browser (page load, chart rendering with real pixel data, tab switching, kill-switch toggle round-tripping to the backend, timeframe-switch triggering a real resample and re-render) | Ran `python -m app.main --demo`, drove a real headless Chromium via Playwright, screenshotted 4 states (initial load, Journal tab, kill-switch ON, 15-minute timeframe), and read the server's access log directly | **Passed — genuinely run, not simulated.** Every real API call returned 200; only a harmless favicon 404 appeared | — fully tested, to the extent a sandboxed headless-browser session can substitute for you clicking around yourself |
+| SSE endpoints (`/api/stream/ticks/{token}`, `/api/stream/health/{token}`) over a real long-lived HTTP connection, with a real client disconnect | Not run | Unknown | The generator logic itself is fully unit-tested (see above); testing the actual `StreamingResponse` HTTP behavior needs a real streaming HTTP client held open over time, which risks a hanging test in CI — deliberately not attempted. Load the page yourself and watch Network tab / EventSource behavior to validate this if you extend `app.js` to use it. |
+| Dashboard against real live ingestion data (Phase 2) over a real trading session | Not run | Unknown | Requires Phase 2's live path (credentials/network), unavailable in this sandbox — everything reachable without that has been run for real, including the browser session above |
+
+**Bottom line: 311/311 pytest tests pass, and — uniquely among the eight phases of this
+build — the dashboard itself was also driven through a real browser and screenshotted,
+not just exercised through pytest.** That closes the loop the brief specifically asked
+for: "start the dev server and use the feature in a browser before reporting the task as
+complete." The one thing that couldn't be validated here is a real live trading session,
+since that needs your credentials.
+
 ## Known limitations
 
+- **The dashboard's `/api/positions` and the risk manager's kill switch are not wired to a
+  live signal-engine/risk-manager/executor loop in this phase.** `app/main.py` starts a
+  pure reader process — it doesn't itself run the Phase 6/7 engine. In `--demo` mode,
+  positions are fabricated for display; in live mode, `/api/positions` returns an empty
+  list and the kill-switch toggle only flips a display flag, not a real
+  `engine.risk_manager.RiskManager` instance. Wiring a live engine loop into (or alongside)
+  this dashboard process is a further integration step for you to do once you're running
+  against a real session.
+- **`/api/instruments/search` only returns results in `--demo` mode.** Live-mode instrument
+  search would need this process to also own a broker session and instrument-master cache,
+  which it deliberately doesn't (single-responsibility: this is a reader, not a broker
+  client) — search against Phase 1's `InstrumentMaster` directly, or extend this endpoint
+  yourself to read a shared cache file.
+- **SSE streaming endpoints were unit-tested at the generator level but not driven through
+  a real long-lived HTTP connection** in the automated test suite (deliberately, to avoid a
+  hanging CI test) — validate `EventSource` behavior yourself in a browser if you build on
+  top of it.
 - **Rate limits and historical-candle lookback windows are unverified placeholders**
   (`config/smartapi_limits.py`). The official SmartAPI docs domains were blocked by this
   environment's network egress proxy during development. Values are deliberately
