@@ -102,6 +102,82 @@ tests pass, plus two manual runs against genuine — not mocked — network fail
 login → instrument-master-download → LTP-fetch happy path requires you to run
 `scripts/fetch_ltp.py` yourself** with real credentials, since I have neither.
 
+## Phase 2 — Ingestion service: WebSocket, candle store, validation, reconnect/backfill
+
+What exists after Phase 2:
+
+- `data/database.py` — `TickStore`: SQLite in WAL mode, one writer (the ingestion process).
+  Prices stored as `TEXT` (exact `Decimal` string), never `REAL`/float, so nothing is
+  silently rounded. Tables: `ticks`, `candles` (unique on instrument+timeframe+open_time,
+  upserted so an in-progress bar can be updated tick-by-tick), `data_health_events`
+  (reconnects, disconnects, rejected bars, backfills — timestamped, queryable by window).
+- `data/validation.py` — `validate_tick()` / `validate_candle()` reject (never silently
+  drop): non-positive prices, negative volume, `high < low`, `close`/`open` outside
+  `[low, high]`, timestamps outside session hours or on a holiday, out-of-order and
+  duplicate ticks. `is_stale()` is calendar-aware — it only fires during the regular
+  session, so it cannot spuriously trigger over a weekend or holiday.
+- `ingestion/candle_builder.py` — aggregates validated ticks into session-anchored 1-minute
+  candles. In-progress bars are persisted with `is_closed=False` on every tick (so the
+  dashboard can show a live-updating last bar); once a new minute starts the prior bar is
+  finalized with `is_closed=True`. Downstream resampling/strategy code (Phase 3+) must
+  filter to `is_closed=True` — nothing in this phase enforces that filter yet, it's a
+  contract the data carries via the flag.
+- `ingestion/websocket_client.py` — `IngestionWebSocketClient` wraps `SmartWebSocketV2`.
+  Subscription-cap-aware chunking (`chunk_subscriptions`, pure function), disconnect/
+  reconnect duration logging (recorded as `data_health_events`), tick validation before
+  persistence. Reconnection and resubscribe-on-reconnect are largely handled by the SDK
+  itself (`RESUBSCRIBE_FLAG` + its own configurable exponential backoff) — confirmed by
+  reading the installed `smartapi-python==1.5.5` source, not assumed; this wrapper adds the
+  logging, chunking, and validation the SDK doesn't provide.
+- `ingestion/backfill.py` — detects gaps in stored candles (`TickStore.find_gaps`) and
+  fills them from the historical-candle endpoint, marking filled bars `is_backfilled=True`.
+  The historical response shape used here (`[iso_ts, open, high, low, close, volume]` rows)
+  is based on forum examples, not the official docs — flagged as unverified, same as the
+  rest of the docs-domain-blocked items from Phase 0/1.
+- `ingestion/health.py` — `get_data_health()`: last-tick age, stale flag, and 24h counts of
+  reconnects/disconnects/rejected bars/backfills per instrument, for the dashboard's data
+  health widget (Phase 8).
+- `ingestion/run_ingestion.py` — the long-lived process entrypoint. Owns the only SmartAPI
+  WebSocket connection in the whole system, per the architecture rule that the dashboard
+  is a pure reader.
+
+### How to run it yourself
+
+```bash
+cp .env.example .env   # fill in real credentials
+python -m ingestion.run_ingestion RELIANCE-EQ:NSE NIFTY:NSE
+```
+
+Run the test suite (now 74 tests total):
+
+```bash
+python -m pytest tests/ -v
+```
+
+### Phase 2 tested/untested
+
+| Component | How tested | Result | Untested because |
+|---|---|---|---|
+| Tick/candle validation rules (all rejection cases: non-positive price, negative volume, high<low, close/open outside range, outside session hours, holiday, out-of-order, duplicate) | `pytest tests/test_validation.py` (18 tests) | All pass | — fully tested |
+| Calendar-aware staleness check (fires only during session, not on weekends/holidays) | `pytest tests/test_validation.py::test_is_stale_*` (4 tests) | All pass | — fully tested |
+| `TickStore` (WAL mode confirmed via `PRAGMA journal_mode`, Decimal round-trips exactly as text not float, candle upsert/overwrite, gap detection, health event counting with time-window filter) | `pytest tests/test_database.py` (9 tests) against a real SQLite file on disk | All pass | — fully tested |
+| `CandleBuilder` (bar open/update/close on minute boundary, multi-instrument isolation, volume-from-cumulative-delta, `flush_all` on shutdown) | `pytest tests/test_candle_builder.py` (6 tests) | All pass | — fully tested |
+| Subscription-cap chunking and token-list grouping (pure functions, no live connection) | `pytest tests/test_websocket_client.py::test_chunk_*` and `::test_to_token_list_*` (4 tests) | All pass | — fully tested |
+| `IngestionWebSocketClient._on_data` tick handling — valid tick persisted, invalid tick rejected+logged, malformed payload handled without crashing | `pytest tests/test_websocket_client.py` (3 tests), constructing a real `SmartWebSocketV2` instance (not connected) and calling the callback methods directly | All pass | — fully tested at the callback level; never tested against real binary WebSocket frames from Angel One's server (see below) |
+| Disconnect/reconnect duration logging | `pytest tests/test_websocket_client.py::test_on_close_then_on_open_logs_disconnect_duration` | Passes | — fully tested at the callback level |
+| SDK's own reconnect/resubscribe behavior (`RESUBSCRIBE_FLAG`, `retry_strategy`, exponential backoff) | Read the installed `smartapi-python==1.5.5` source directly (`SmartWebSocketV2._on_error`, `.resubscribe()`, `._on_open()`) | Confirmed present and matches what this wrapper assumes — not a guess | Never observed firing against a real dropped connection, since no live connection exists in this sandbox |
+| Historical-candle parsing and gap-fill logic | `pytest tests/test_backfill.py` (3 tests) against a fake `getCandleData` response shaped per forum examples | All pass | The response *shape* itself is unverified against official docs (see Known Limitations); real API was never called |
+| Data health aggregation (`get_data_health`) | `pytest tests/test_health.py` (3 tests) | All pass | — fully tested |
+| Live WebSocket connection to `wss://smartapisocket.angelone.in/smart-stream`, real binary tick frames, real reconnect/resubscribe under an actual dropped connection, real historical backfill call | Not run | Unknown | No credentials and no network path to Angel One's infrastructure exist in this sandbox — **you must run `python -m ingestion.run_ingestion SYMBOL:EXCHANGE` yourself** to validate the live path |
+
+**Bottom line: 74/74 pytest tests pass, covering every validation rule, the full candle-
+aggregation state machine, the SQLite store (including a real WAL-mode check and a real
+Decimal-precision round-trip check), subscription chunking, and every WebSocket callback
+in isolation. What's still unverified is the live path itself — real binary frames, a real
+dropped connection, a real historical-API call — none of which are reachable from this
+environment. Run `ingestion/run_ingestion.py` yourself against a real session to close
+that gap.**
+
 ## Known limitations
 
 - **Rate limits and historical-candle lookback windows are unverified placeholders**
@@ -120,9 +196,16 @@ login → instrument-master-download → LTP-fetch happy path requires you to ru
   `None` on every `Instrument` until a separate NSE F&O contract-file source is wired in —
   not yet built as of Phase 1.
 - **No live-credential testing has been possible in this development environment.** Auth,
-  instrument-master download, and LTP fetch are implemented and exercised against real
-  failure modes (network blocked, invalid TOTP secret) but never against a real successful
-  broker session. You must validate the happy path yourself.
+  instrument-master download, LTP fetch, and the WebSocket ingestion path are implemented
+  and exercised against real failure modes (network blocked, invalid TOTP secret, callback
+  logic tested directly) but never against a real successful broker session or a real
+  dropped WebSocket connection. You must validate the happy path yourself.
+- **Historical-candle response shape (`ingestion/backfill.py`) is based on forum examples,
+  not official docs.** If the real response nests differently, `fetch_historical_candles`
+  will raise on the first real call rather than silently misparsing (it unpacks a fixed
+  6-tuple per row) — but verify against docs before relying on backfill in anger.
+- **Base candle timeframe is 1 minute only.** Multi-timeframe resampling (3/5/15/30/60 min)
+  from these closed 1-minute bars is Phase 3 work, not yet built.
 - This is a personal paper-trading tool, not a production system. Security hardening,
   secrets management, and regulatory compliance are your responsibility if you extend this
   toward live use.
