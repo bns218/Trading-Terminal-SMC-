@@ -239,6 +239,86 @@ mechanism that prevents look-ahead bias, which is the single most important corr
 property of a backtester — was actually run and verified in this environment, not just
 implemented and asserted to work.**
 
+## Phase 4 — Market structure, SMC, ICT, candlestick and chart patterns
+
+**These are discretionary trading concepts being mechanised into fixed rules.** Every
+detector in this phase documents the ONE interpretation it implements, with tunable
+parameters — not an objective or unique definition. Different traders/educators define
+these patterns differently in ways that would change what gets detected. Treat this as a
+calibration starting point; never present a pattern hit as objective fact. Full rule
+descriptions live in each module's docstrings; the summary below is not a substitute for
+reading them before you trust a specific detector.
+
+What exists after Phase 4:
+
+- `strategies/patterns_common.py` — `find_swing_points()`: the fractal swing-high/low
+  detector (a bar is a swing if its high/low strictly dominates `lookback` bars on both
+  sides) that SMC and chart-pattern detection are built on. Documents its own confirmation
+  lag explicitly: a swing at bar `i` is only knowable once bar `i+lookback` has closed.
+  `classify_structure()` labels swings HH/HL/LH/LL against the previous swing of the same
+  kind.
+- `strategies/candlestick.py` — doji, hammer, shooting star, (bullish/bearish) engulfing,
+  harami, inside bar, pin bar, morning star, evening star. All pure, parameterized
+  (wick/body ratio thresholds), returning `PatternEvent`.
+- `strategies/smc.py` — BOS/CHOCH (tracks trend state; the first-ever structure break is
+  always BOS, later breaks are BOS if they continue the trend and CHOCH if they reverse
+  it), fair value gaps (3-candle imbalance), order blocks (last opposite-direction candle
+  before an ATR-relative displacement move), liquidity sweeps (wick beyond a swing
+  level, close back inside), and `premium_discount_zone()` (simple 50% midpoint
+  convention — the OTE 62-79% variant is not implemented).
+- `strategies/ict.py` + `config/ict_settings.py` — displacement detection (large-range,
+  mostly-body candles relative to ATR) and kill-zone tagging. Kill zones are defined in
+  their **native session timezone** (`America/New_York`/`Europe/London`) and converted
+  per-bar via `zoneinfo`, specifically to avoid the DST bug a fixed IST-offset table would
+  have (verified with a same-UTC-instant-different-season test — see table below).
+- `strategies/chart_patterns.py` — double top/bottom and head & shoulders (+ inverse),
+  built on confirmed swing points with a neckline-break confirmation rule (reported at the
+  confirming bar, not the pattern's visual peak); a simplified linear-regression trendline
+  classifier for triangles/wedges/channels (explicitly documented as trading fidelity for
+  mechanical testability — real chartists draw trendlines through swing points, not a
+  regression over every bar); and flag/pennant detection (a strong ATR-relative "pole" move
+  followed by a tight consolidation, classified as pennant vs. flag by the same trendline
+  classifier).
+
+### How to run it yourself
+
+```bash
+python -m pytest tests/test_patterns_common.py tests/test_candlestick.py tests/test_smc.py tests/test_ict.py tests/test_chart_patterns.py -v
+```
+
+No credentials or network access needed — same as Phase 3, this operates purely on
+DataFrames and ran end-to-end in this environment.
+
+### Phase 4 tested/untested
+
+| Component | How tested | Result | Untested because |
+|---|---|---|---|
+| Swing-point detection (single high/low, flat series, strict-dominance tie-breaking, both-side lookback requirement, invalid lookback) | `pytest tests/test_patterns_common.py` (6 tests) | All pass | — fully tested |
+| Structure classification (HH/HL/LH/LL labeling) | `pytest tests/test_patterns_common.py::test_classify_structure_hh_hl_lh_ll` | Passes | — fully tested |
+| All 9 candlestick patterns (doji, hammer, shooting star, bullish/bearish engulfing, harami, inside bar, bullish/bearish pin bar, morning star, evening star) — both positive detection and explicit negative/no-false-positive cases | `pytest tests/test_candlestick.py` (16 tests) | All pass (1 test-authoring bug caught and fixed along the way: a "bearish" harami test candle was accidentally bullish OHLC) | — fully tested |
+| BOS/CHOCH sequencing (first break = BOS, trend-following break = BOS, trend-reversing break = CHOCH) | `pytest tests/test_smc.py::test_bos_then_choch_sequence` and 2 related tests, against an 8-bar sequence **hand-traced bar-by-bar against the algorithm before running** (see the test file's comment) | Passed exactly as hand-traced, including an incidental extra swing that correctly produced no spurious event | — fully tested, and to an unusually high confidence level since the expected output was derived independently before the test was run |
+| Fair value gaps (bullish, bearish, no-gap-on-overlap) | `pytest tests/test_smc.py` (3 tests) | All pass | — fully tested |
+| Order blocks (detected before displacement, absent without displacement, empty on too-few-bars) | `pytest tests/test_smc.py` (3 tests) | All pass | — fully tested |
+| Liquidity sweeps (wick-beyond-then-close-back triggers a sweep; a clean close-through does NOT) | `pytest tests/test_smc.py` (2 tests) | All pass | — fully tested |
+| Premium/discount zone classification | `pytest tests/test_smc.py` (4 tests) | All pass | — fully tested |
+| ICT kill-zone DST correctness (same UTC wall-clock instant classified differently in an EDT month vs. an EST month; midnight-crossing Asian session; naive-datetime rejection) | `pytest tests/test_ict.py` (5 tests) | All pass | — fully tested, and specifically targets the DST bug a naive fixed-offset implementation would have had |
+| ICT displacement (strong directional candle detected; wide indecision candle with long both-side wicks correctly rejected; too-few-bars returns empty) | `pytest tests/test_ict.py` (3 tests) | All pass | — fully tested |
+| Displacement-in-kill-zone intersection | `pytest tests/test_ict.py` (2 tests) | All pass | — fully tested |
+| Double top/bottom (detection + neckline confirmation, non-confirmation when neckline isn't broken, no false positive on a monotonic trend) | `pytest tests/test_chart_patterns.py` (4 tests), scenarios **hand-traced against `find_swing_points` output before writing assertions** — one hand-tracing arithmetic error (wrong neckline value) was caught and fixed this way, not by loosening the test | All pass | — fully tested |
+| Head & shoulders / inverse (detection + neckline confirmation, no-false-positive when head isn't the highest) | `pytest tests/test_chart_patterns.py` (3 tests) | All pass | — fully tested |
+| Trendline shape classification (flat channel, ascending/descending/symmetrical triangle, parallel channel) | `pytest tests/test_chart_patterns.py` (6 tests) — the first run exposed the default `flat_slope_threshold` as miscalibrated for the test data (real slopes were being classified as flat); the threshold was corrected, not the test | All pass after the fix | — fully tested |
+| Flag/pennant detection (pole+consolidation triggers, no pole = no signal, too-few-bars = empty) | `pytest tests/test_chart_patterns.py` (3 tests) | All pass | — fully tested |
+| Every detector's behavior against real market data | Not run | Unknown | All Phase 4 code operates on DataFrames only — no credentials/network needed to test the *mechanism* — but only real price action can validate whether the chosen thresholds (tolerance %, ATR multiples, slope cutoffs) produce sensible detection rates in practice. That requires you to run this against real historical candles from Phase 2/3's pipeline. |
+
+**Bottom line: 172/172 pytest tests pass. Every detector's core logic was verified against
+hand-traced expected output computed independently before running the test — not just
+"write code, write a test that happens to agree with it." Three real bugs were caught this
+way during development (one candlestick test's OHLC direction, one chart-pattern test's
+neckline value, one miscalibrated default threshold) and fixed at the source of the
+error, not by adjusting the test to match buggy output. What's genuinely untested is
+real-world detection quality — that requires your own historical data and judgment, since
+these are inherently subjective pattern definitions.**
+
 ## Known limitations
 
 - **Rate limits and historical-candle lookback windows are unverified placeholders**
@@ -272,6 +352,21 @@ implemented and asserted to work.**
   standard textbook formulations (Wilder smoothing where applicable), but if you need
   bit-for-bit parity with a specific charting platform, cross-check independently — ADX in
   particular has multiple documented variants in practice.
+- **All Phase 4 pattern detectors (candlestick, SMC, ICT, chart patterns) implement ONE
+  interpretation of inherently discretionary concepts**, with tunable thresholds
+  (wick/body ratios, price tolerance %, ATR multiples, trendline slope cutoffs) that have
+  not been calibrated against real market data — only against synthetic hand-traced test
+  cases proving the mechanism works as documented. Detection *rates* in practice (too many
+  false positives, too few real hits) can only be judged by running this against real
+  historical data and your own trading judgment.
+- **The chart-pattern trendline classifier (triangles/wedges/channels) is a linear
+  regression over every bar's high/low, not trendlines drawn through swing points** the way
+  a chartist would. This trades some fidelity for being mechanically well-defined —
+  documented explicitly in `strategies/chart_patterns.py`.
+- **ICT kill-zone hour ranges are one commonly-cited convention among several** — some ICT
+  educators define slightly different windows. The DST-correctness mechanism (converting
+  per-timestamp via `zoneinfo` rather than a fixed offset) is solid; the specific hours in
+  `config/ict_settings.py` are a starting point to adjust to your own convention.
 - **The Phase 3 backtest harness is intentionally minimal**: one open trade at a time, next-
   bar-open fills, no brokerage/slippage/lot-size modeling, and a conservative same-bar
   stop-and-target-both-hit tiebreak (assumes the worse outcome, since OHLC data alone can't
