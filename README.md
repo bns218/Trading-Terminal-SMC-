@@ -391,6 +391,65 @@ self-consistency. What's unverified is real API response shapes (docs-blocked, s
 constraint as every prior phase) and real-market chain construction (needs your
 credentials).
 
+## Phase 6 — Signal engine + risk manager
+
+What exists after Phase 6:
+
+- `config/signal_config.py` — `FACTOR_WEIGHTS` (the exact weights from the brief: HTF trend
+  20, SMC 20, price action 15, indicators 15, option chain 15, volume/momentum 10,
+  candlestick/chart confirmation 5) and `ConfluenceConfig` (total-score threshold + minimum
+  agreeing-factor count). **Explicitly marked UNVALIDATED** — these are the specified
+  defaults, not backtested or calibrated.
+- `config/risk_config.py` — account capital, max risk per trade, max daily loss, max
+  trades/day, max open positions, cooldown-after-consecutive-losses, session-hour window.
+  Also UNVALIDATED defaults, yours to retune.
+- `engine/signal_engine.py` — `generate_signal()`: combines caller-supplied per-factor
+  scores (each -1..1, from strategies/ output) into a `TradeSignal`. Confluence is enforced
+  by **two independent conditions**, both required: the total weighted score must clear the
+  threshold, AND at least `min_confluence_factors` distinct factors must agree in direction
+  above a minimum strength. Verified structurally (not just by a passing test): given these
+  weights, the two largest factors alone (20+20=40) can never reach the 60-point threshold,
+  and the three largest (20+20+15=55) still fall short — so reaching a signal requires at
+  least 4 factors' worth of weight by construction, independent of the min-factor-count
+  check. NO_TRADE always carries full sub-scores and a reason, so "why not" is as auditable
+  as "why."
+- `engine/risk_manager.py` — `RiskManager.evaluate()`: the veto gate between the signal
+  engine and the executor (Phase 7). Checks, in order: NO_TRADE passthrough, kill switch,
+  configured session-hour window, calendar holiday/weekend, max daily loss, max trades/day,
+  max open positions, cooldown, stop-distance validity, then lot-size-aware position sizing
+  from the configured risk-per-trade budget. Every rejection returns a named `rejected_rule`
+  and is logged. State (daily P&L, trade count, consecutive losses, cooldown) is
+  stateful-by-necessity and resets automatically on a calendar-day rollover.
+
+### How to run it yourself
+
+```bash
+python -m pytest tests/test_signal_engine.py tests/test_risk_manager.py -v
+```
+
+No credentials or network access needed — pure logic, same as Phases 3-5.
+
+### Phase 6 tested/untested
+
+| Component | How tested | Result | Untested because |
+|---|---|---|---|
+| Strong confluence produces BUY/SELL with correct entry/stop/target arithmetic | `pytest tests/test_signal_engine.py` (4 tests) | All pass | — fully tested |
+| A single factor at its absolute maximum strength alone cannot produce a trade | `pytest tests/test_signal_engine.py::test_single_maxed_factor_alone_never_produces_trade` | Passes | — fully tested; this is the specific guarantee the brief required ("a single indicator firing must never produce a trade") |
+| Two maxed factors (40 points) still below the 60-point threshold | `pytest tests/test_signal_engine.py::test_two_maxed_factors_still_below_threshold` | Passes | — fully tested |
+| Minimum-agreeing-factor-count condition enforced independently of total score | `pytest tests/test_signal_engine.py::test_min_confluence_factor_count_enforced_independently_of_score` (uses a stricter custom confluence config to isolate this specific condition from the score-threshold condition) | Passes | — fully tested |
+| NO_TRADE is produced for weak/mixed signals; reasons and full sub-scores always populated | `pytest tests/test_signal_engine.py` (3 tests) | All pass | — fully tested |
+| Raw score clamping, reason filtering to only agreeing factors, invalidation conditions present | `pytest tests/test_signal_engine.py` (3 tests) | All pass | — fully tested |
+| Risk manager: approval + lot-size-aware position sizing arithmetic | `pytest tests/test_risk_manager.py::test_approved_with_correct_position_sizing` | Passes | — fully tested |
+| All 9 veto rules individually (NO_TRADE passthrough, kill switch, configured session window, calendar holiday, max daily loss, max trades/day, max open positions, cooldown, invalid stop distance, position-size-below-one-lot) | `pytest tests/test_risk_manager.py` (11 tests) | All pass — **one real bug caught and fixed during testing**: `record_trade_opened()` didn't roll the daily state over a calendar-day boundary the way `record_trade_closed()` did, so the first `record_trade_closed()` call after one or more `record_trade_opened()` calls silently wiped the trade count that had just been recorded. Fixed by making `record_trade_opened()` take a timestamp and roll the day itself, exactly like its counterpart. | — fully tested, and the bug is exactly the kind of stateful-logic error unit tests exist to catch |
+| Consecutive-loss cooldown triggering and win-resets-streak behavior | `pytest tests/test_risk_manager.py` (2 tests) | Both pass | — fully tested |
+| Daily state auto-reset on calendar-day rollover | `pytest tests/test_risk_manager.py::test_daily_state_resets_on_new_trading_day` | Passes | — fully tested |
+| Signal engine + risk manager wired together against a live strategy stack producing real factor scores from real market data | Not run | Unknown | Requires Phases 2/3/4/5's live data path (credentials/network), which doesn't exist in this sandbox — the engine logic itself is fully tested, but no real trading day has been run through it end to end |
+
+**Bottom line: 247/247 pytest tests pass.** One genuine stateful-logic bug (the
+`record_trade_opened`/day-rollover ordering issue above) was caught by the test suite
+before being reported here — exactly the value of testing state machines like the risk
+manager thoroughly rather than trusting them by inspection.
+
 ## Known limitations
 
 - **Rate limits and historical-candle lookback windows are unverified placeholders**
@@ -452,6 +511,18 @@ credentials).
   matching-expiry futures price, not spot; passing spot as a stand-in for the forward
   (common in practice when the futures price isn't separately fetched) is a further
   simplification you'd be making at the call site, not something this module does silently.
+- **Signal engine factor scores (-1..1 per factor) must be computed by the caller** from
+  Phase 3-5's strategy outputs — `engine/signal_engine.py` itself does not run indicators,
+  SMC, or option-chain analysis. The mapping from "BOS confirmed, 2 bars ago" or "RSI at 68"
+  to a single -1..1 number is a design decision left for whoever wires the engine into a
+  live pipeline (Phase 8), not fixed here.
+- **`FACTOR_WEIGHTS` and `ConfluenceConfig` are the brief's specified defaults, not
+  validated against any backtest.** Do not treat a backtest run with these defaults as
+  evidence the strategy works.
+- **Risk manager's cooldown state resets on a calendar-day rollover along with everything
+  else** — if a cooldown is triggered near midnight, it could theoretically be cleared by
+  the day-rollover reset before its configured duration elapses. A minor edge case, not
+  fixed, since intraday-only trading makes it unlikely to matter in practice.
 - **The Phase 3 backtest harness is intentionally minimal**: one open trade at a time, next-
   bar-open fills, no brokerage/slippage/lot-size modeling, and a conservative same-bar
   stop-and-target-both-hit tiebreak (assumes the worse outcome, since OHLC data alone can't

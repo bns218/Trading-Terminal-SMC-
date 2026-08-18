@@ -158,3 +158,51 @@ class OptionChainSnapshot(BaseModel):
     @classmethod
     def _aware(cls, v: datetime) -> datetime:
         return _reject_naive(v)
+
+
+class SignalDirection(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    NO_TRADE = "NO_TRADE"
+
+
+class SubScore(BaseModel):
+    """One factor's contribution to a TradeSignal. `raw_score` is the factor's
+    own -1..1 directional strength (caller-supplied, from strategies/ output);
+    `weight` is that factor's configured point allocation (config/signal_config.py);
+    `weighted_score` = raw_score * weight, i.e. this factor's contribution to
+    the -100..100 total. Always included in a TradeSignal — even for a
+    NO_TRADE — so "why not" is as auditable as "why.\""""
+
+    model_config = ConfigDict(frozen=True)
+
+    factor: str
+    raw_score: float
+    weight: float
+    weighted_score: float
+    reason: str
+
+
+class TradeSignal(BaseModel):
+    """Signal engine output. For NO_TRADE (the expected common case per the
+    project's confluence rule), entry/stop_loss/targets/risk_reward are None
+    and sub_scores still records every factor's contribution."""
+
+    model_config = ConfigDict(frozen=True)
+
+    instrument_token: str
+    direction: SignalDirection
+    timestamp: datetime
+    confidence: float  # 0-100, abs(total weighted score)
+    sub_scores: list[SubScore]
+    entry: Optional[Decimal] = None
+    stop_loss: Optional[Decimal] = None
+    targets: list[Decimal] = []
+    risk_reward: Optional[float] = None  # R:R for the first target (T1)
+    reasons: list[str] = []
+    invalidation_conditions: list[str] = []
+
+    @field_validator("timestamp")
+    @classmethod
+    def _aware(cls, v: datetime) -> datetime:
+        return _reject_naive(v)
