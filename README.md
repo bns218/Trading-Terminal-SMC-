@@ -703,3 +703,269 @@ since that needs your credentials.
 - This is a personal paper-trading tool, not a production system. Security hardening,
   secrets management, and regulatory compliance are your responsibility if you extend this
   toward live use.
+
+---
+
+# Final deliverables
+
+All 8 phases in the build order are complete, pushed, and documented above with their own
+tested/untested tables. This section pulls together the pieces the original brief asked
+for as a standalone reference, rather than scattered one per phase.
+
+## Project structure
+
+```
+trading_terminal/
+├── app/                    # FastAPI dashboard (Phase 8) — pure reader, no broker connection
+│   ├── main.py             #   entrypoint: python -m app.main [--demo]
+│   ├── state.py            #   shared AppState (store, calendar, demo flag)
+│   ├── demo_data.py        #   synthetic --demo dataset generator
+│   ├── api/routes.py       #   REST endpoints
+│   ├── api/serializers.py  #   dataclass -> JSON-safe dict helpers
+│   ├── sse/streams.py      #   SSE generators (tick, data-health)
+│   └── static/             #   vanilla HTML/CSS/JS frontend, no framework, no CDN
+├── broker/                 # Angel One SmartAPI client (Phase 1)
+│   ├── auth.py             #   TOTP login, session lifecycle, mid-session-failure handling
+│   ├── angelone_client.py  #   the single owner of session + rate limiter + instrument master
+│   ├── instruments.py      #   instrument master: download, disk cache, fallback
+│   ├── market_data.py      #   LTP/quote fetch
+│   ├── options_api.py      #   optionGreek / putCallRatio / oIBuildup / gainersLosers wrappers
+│   ├── ratelimit.py        #   per-endpoint token-bucket limiter + backoff
+│   └── exceptions.py
+├── ingestion/               # Standalone tick/candle service (Phase 2) — separate process
+│   ├── run_ingestion.py    #   entrypoint: python -m ingestion.run_ingestion SYMBOL:EXCHANGE ...
+│   ├── websocket_client.py #   the ONLY thing that opens the SmartAPI WebSocket
+│   ├── candle_builder.py   #   tick -> 1-min candle aggregation
+│   ├── backfill.py         #   gap detection + historical-endpoint backfill
+│   └── health.py           #   data-health metrics
+├── strategies/              # Pure analysis: DataFrame in, typed result out (Phases 3-5)
+│   ├── indicators.py        #   VWAP, EMA, RSI, MACD, ATR, Bollinger, ADX, volume stats
+│   ├── patterns_common.py   #   swing-point detection shared by SMC/chart patterns
+│   ├── candlestick.py       #   9 candlestick patterns
+│   ├── smc.py                #   BOS/CHOCH, order blocks, FVGs, liquidity sweeps, premium/discount
+│   ├── ict.py                #   displacement, kill zones
+│   ├── chart_patterns.py    #   double top/bottom, H&S, triangles/wedges/channels, flags/pennants
+│   ├── option_chain.py      #   CE/PE pairing by strike
+│   ├── options_pricing.py   #   Black-Scholes / Black-76, Greeks, IV
+│   └── options_analytics.py #   PCR, max pain, OI buildup, ATM/ITM/OTM, OI resistance/support
+├── engine/                  # Signal generation + risk (Phase 6)
+│   ├── signal_engine.py     #   weighted confluence scoring -> BUY/SELL/NO_TRADE
+│   ├── risk_manager.py      #   veto authority between signal engine and executor
+│   └── position_manager.py  #   pending-order/open-position tracking with live unrealized P&L
+├── execution/                # Order execution (Phase 7)
+│   ├── executor_protocol.py #   the Executor protocol both implementations satisfy
+│   ├── paper_executor.py    #   full paper simulation: fills, slippage, charges, journal
+│   ├── live_executor.py     #   every method raises NotImplementedError — cannot be constructed
+│   └── factory.py            #   the ONE place trading_mode selects an executor
+├── backtesting/
+│   └── harness.py            #   walk-forward engine, structural look-ahead prevention (Phase 3)
+├── data/                    # Shared contracts, storage, validation
+│   ├── models.py             #   pydantic contracts: Instrument, Quote, Candle, TradeSignal, ...
+│   ├── database.py           #   SQLite WAL store: ticks, candles, health events, trade journal
+│   ├── validation.py         #   tick/candle validation rules
+│   └── resample.py           #   1-min -> 3/5/15/30/60-min resampling, partial-bar-safe
+├── config/                  # Every tunable parameter, all UNVALIDATED defaults flagged as such
+│   ├── settings.py            #   env-driven settings, TRADING_MODE hard-typed to "PAPER"
+│   ├── logging_config.py      #   structured JSON logging + secret redaction
+│   ├── market_calendar.py     #   NSE/BSE session windows, holiday awareness
+│   ├── holidays.json          #   user-maintained holiday list
+│   ├── smartapi_limits.py     #   rate limits (PLACEHOLDER — verify against docs)
+│   ├── signal_config.py       #   factor weights + confluence thresholds
+│   ├── risk_config.py         #   risk manager parameters
+│   ├── charges_config.py      #   brokerage/STT/GST schedule (PLACEHOLDER percentages)
+│   └── ict_settings.py        #   ICT kill-zone windows
+├── scripts/
+│   └── fetch_ltp.py            #   Phase 1 manual acceptance script
+├── docs/
+│   └── phase0_capability_matrix.md  # SmartAPI capability audit + architecture decisions
+├── tests/                    # 311 tests, one file per module, mirrors the structure above
+├── .env.example
+├── requirements.txt
+└── README.md                 # this file
+```
+
+## Installation
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt        # verified: resolves cleanly, no conflicts (see Setup above)
+cp .env.example .env                   # fill in real Angel One credentials — never commit .env
+```
+
+## How to start the terminal
+
+Three independent processes, matching the architecture decision that the dashboard never
+owns the broker connection:
+
+```bash
+# 1. Ingestion (separate process) — owns the SmartAPI WebSocket, writes to the SQLite store.
+python -m ingestion.run_ingestion RELIANCE-EQ:NSE NIFTY:NSE
+
+# 2. Dashboard (separate process) — reads from the same store, serves the UI.
+python -m app.main
+# open http://127.0.0.1:8000
+
+# --- or, with no credentials/network at all, to see the UI working right now: ---
+python -m app.main --demo
+```
+
+There is currently no single "start everything" command that also runs the signal engine
++ risk manager + paper executor loop continuously — that loop (Phase 6/7's pieces, wired
+together against live candles from Phase 2) is a further integration step for you to
+script, since doing so meaningfully requires your own real credentials to validate against.
+Every individual piece (`engine.signal_engine.generate_signal`, `engine.risk_manager.
+RiskManager.evaluate`, `execution.paper_executor.PaperExecutor`) is fully built, tested,
+and ready to be called from that loop — see the walkthrough below for how they compose.
+
+## How to run tests
+
+```bash
+python -m pytest tests/ -v         # all 311 tests
+python -m pytest tests/ -q         # quiet summary
+```
+
+No credentials or network access are required for any test in this suite — every test that
+would need them is either mocked (broker API wrappers) or documented in its phase's
+tested/untested table as requiring you to validate manually.
+
+## Database schema
+
+One SQLite database (WAL mode — see `data/database.py`), written by whichever process is
+producing that data (ingestion writes ticks/candles/health events; the paper executor
+writes the trade journal), read by everything else.
+
+| Table | Key columns | Written by | Notes |
+|---|---|---|---|
+| `ticks` | `instrument_token`, `ltp`, `volume`, `exchange_ts`, `received_at` | `ingestion/websocket_client.py` | `ltp` stored as `TEXT` (exact `Decimal` string) — never `REAL`, to avoid float-corrupting money values |
+| `candles` | `instrument_token`, `timeframe`, `open_time`, `close_time`, `open/high/low/close` (TEXT), `volume`, `is_backfilled`, `is_closed` | `ingestion/candle_builder.py`, `ingestion/backfill.py` | Unique on `(instrument_token, timeframe, open_time)` — upserted, so an in-progress bar updates in place. `is_closed=0` bars must never reach a strategy (`data/resample.py` filters this) |
+| `data_health_events` | `event_type` (`reconnect`\|`disconnect`\|`rejected_bar`\|`backfill`), `detail`, `occurred_at` | `ingestion/websocket_client.py`, `ingestion/backfill.py` | Powers the dashboard's data-health panel and `ingestion/health.py`'s aggregation |
+| `trade_journal` | `instrument_token/symbol`, `direction`, `quantity`, `entry/exit_price`, `stop_loss`, `target`, `pnl_gross/net` (TEXT), `charges_total`, `confidence`, `strategy`, `entry/exit_reason`, `entry/exit_time` | `execution/paper_executor.py` | Every field the brief specified for the trade journal; all money fields TEXT-as-Decimal |
+
+Default location: `data_store/ticks.db` (configurable via `TICK_STORE_PATH` in `.env`).
+`--demo` mode uses its own separate path so it never touches real data.
+
+## How paper mode is enforced
+
+Not by one flag — by three independent layers, so a single mistake can't flip it:
+
+1. **`config/settings.py`**: `Settings.trading_mode` is typed `Literal["PAPER"]`. Pydantic
+   validation itself rejects any other value at object construction — `Settings(trading_mode="LIVE")`
+   raises before the process even starts.
+2. **`execution/live_executor.py`**: `LiveExecutor` — every method, including `__init__`,
+   raises `NotImplementedError`. It is not merely unused; it is **impossible to
+   instantiate**. There is no live order-placement code to accidentally call.
+3. **`execution/factory.py`**: `create_executor()` is the only place in the codebase that
+   decides which executor to build, and it does so once, from `Settings.trading_mode` — no
+   other module constructs `PaperExecutor` or `LiveExecutor` directly.
+
+All three are independently tested (`tests/test_settings.py`, `tests/test_live_executor_and_factory.py`)
+— see Phase 7's tested/untested table.
+
+## Security recommendations
+
+- **Never commit `.env`.** It's already in `.gitignore`; double-check before every commit
+  if you ever hand-edit git state (`git status` before `git add -A`, per this project's own
+  working practice throughout).
+- **Rotate your TOTP secret and API key if either is ever exposed** (committed by accident,
+  pasted into a chat, logged somewhere). `config/logging_config.py`'s redaction is
+  defense-in-depth, not a guarantee against every possible leak path (e.g. a raw traceback
+  from a third-party library that isn't routed through this project's logger).
+- **Run the ingestion and dashboard processes with least privilege** — a dedicated OS user
+  with write access only to `data_store/`, `logs/`, and `cache/`, not your full home
+  directory.
+- **Treat the SQLite store as sensitive** if you ever put real trade data in it — it
+  contains your trading activity in plaintext (by design, for the journal's own
+  auditability), so protect it the way you'd protect any financial record: file
+  permissions, backups, and not syncing it to an unencrypted cloud drive.
+- **`.env.example` ships with placeholder values only** — confirmed by
+  `scripts/fetch_ltp.py` actually failing cleanly (not hanging, not crashing) when run
+  against those placeholders during Phase 1 testing.
+- **If you ever build toward live execution** (a deliberate, separate decision this project
+  does not make for you): add TLS certificate pinning or at minimum verification for the
+  broker API host, add an explicit human-confirmation step before any live order placement
+  regardless of what the signal engine outputs, and re-read Angel One's API terms and the
+  current SEBI rules on retail algo trading via broker APIs — this README does not
+  constitute compliance advice, and the regulatory position can change.
+- **The FastAPI dashboard (`app/main.py`) binds to `127.0.0.1` by default** (see
+  `config/settings.py`'s `api_host`). If you change it to bind to `0.0.0.0` or a public
+  interface, you are exposing your trade journal, positions, and a kill-switch toggle over
+  the network with **no authentication built in** — this phase did not build a login system,
+  since a personal paper-trading tool running on `localhost` doesn't need one. Add
+  authentication yourself before exposing this beyond your own machine.
+
+## Walkthrough: how the signal engine reaches one decision
+
+A concrete, code-accurate example — not a hypothetical — using the actual default weights
+(`config/signal_config.py`) and a NIFTY futures contract at ₹24,500 with a 1-minute ATR of
+₹50.
+
+**Step 1 — every strategy module runs independently and produces evidence, not a verdict.**
+Before the signal engine is ever called, upstream code (not shown here — this is the
+integration step you'd write) would have run, say: `strategies.indicators.ema()` on the
+60-minute chart (finds EMA9 > EMA20 > EMA50, a stacked bullish alignment),
+`strategies.smc.detect_bos_choch()` on the 5-minute chart (finds a bullish BOS confirmed 3
+bars ago), `strategies.candlestick.detect_engulfing()` on the 1-minute chart (finds a small,
+unconvincing bullish engulfing candle), and `strategies.options_analytics.compute_pcr()` on
+the option chain (finds a PCR of 1.3 — more puts written than calls, read as mildly bullish
+positioning).
+
+**Step 2 — each piece of evidence is distilled into one number per factor, in [-1, 1].**
+This translation (not built by `engine/signal_engine.py` itself — that module stays pure
+and takes these numbers as input) might reasonably score this evidence as:
+
+| Factor | Score | Weight | Contribution | Why |
+|---|---|---|---|---|
+| `htf_trend` | 0.9 | 20 | 18.0 | Strong stacked EMA alignment on the 60-min chart |
+| `smc` | 0.8 | 20 | 16.0 | Confirmed bullish BOS, price holding above the break level |
+| `price_action` | 0.6 | 15 | 9.0 | Clean HH/HL structure, last pullback held |
+| `indicators` | 0.5 | 15 | 7.5 | RSI 58 and rising, MACD histogram positive but flattening |
+| `option_chain` | 0.7 | 15 | 10.5 | PCR 1.3, max pain below spot — mildly bullish positioning |
+| `volume_momentum` | 0.4 | 10 | 4.0 | Volume 1.3x the 20-bar average — present, not dramatic |
+| `candlestick_chart` | 0.2 | 5 | 1.0 | Small engulfing candle — real but weak on its own |
+
+**Step 3 — `generate_signal()` sums the weighted contributions.**
+Total = 18.0 + 16.0 + 9.0 + 7.5 + 10.5 + 4.0 + 1.0 = **66.0** (out of a possible 100).
+
+**Step 4 — confluence is checked, not assumed.** Two independent conditions, both from
+`config.signal_config.CONFLUENCE`:
+- Does the total (66.0) clear `total_score_threshold` (60.0)? **Yes.**
+- Do at least `min_confluence_factors` (3) distinct factors have `|raw_score| >=
+  factor_min_strength` (0.3) in the same direction as the total? Six factors qualify
+  (`htf_trend`, `smc`, `price_action`, `indicators`, `option_chain`, `volume_momentum` — all
+  ≥0.3 and positive); only `candlestick_chart` (0.2) falls short and is excluded from the
+  reasons list, though its 1.0-point contribution still counted toward the total. **Yes,
+  6 ≥ 3.**
+
+Both conditions hold, so this is **not** a NO_TRADE. (If either had failed — say the total
+had only reached 55, or only two factors had cleared 0.3 — the engine would have returned
+`NO_TRADE` with the same six-factor breakdown attached, so "why not" is exactly as visible
+as "why.")
+
+**Step 5 — direction and levels.** The total is positive, so `direction = BUY`. Stop
+distance = `STOP_ATR_MULTIPLE` (1.5) × ATR (₹50) = ₹75. Entry is ₹24,500, so:
+- **Stop-loss** = 24,500 − 75 = **₹24,425**
+- **T1** (1R) = 24,500 + 1×75 = **₹24,575**
+- **T2** (2R) = 24,500 + 2×75 = **₹24,650**
+- **T3** (3R) = 24,500 + 3×75 = **₹24,725**
+- **R:R** = 1.0 (T1 is exactly 1R by construction — that's what "R" means here)
+
+The resulting `TradeSignal` carries `confidence=66.0`, all seven `sub_scores` (so the full
+evidence trail is inspectable, not just the six that counted toward confluence), the
+`reasons` list built from the six agreeing factors' human-readable text, and
+`invalidation_conditions` stating the stop level and the confluence-reversal condition.
+
+**Step 6 — this is where most of the system's actual work happens: the risk manager can
+still say no.** `engine.risk_manager.RiskManager.evaluate()` receives this signal next and
+checks, in order: is the kill switch off, are we inside the configured session window
+(09:20–15:15 IST by default), is today a trading day, has the daily loss limit already been
+hit, has today's trade-count limit been hit, is there room under the open-positions limit,
+is a post-loss-streak cooldown active, is the stop distance valid — and only then computes a
+lot-size-aware position size from the configured risk-per-trade budget. Any single "no"
+here blocks the trade with a named rule, logged, regardless of how strong the signal was.
+Only if every check passes does `execution.paper_executor.PaperExecutor.submit_order()` ever
+get called — and even then, it doesn't fill immediately; it waits for the next bar's open,
+per Phase 7's fill model.
+
+That's the whole path from seven independent, weak pieces of evidence to one accountable
+decision — or, far more often in practice, to a well-documented `NO_TRADE`.
