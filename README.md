@@ -178,6 +178,67 @@ dropped connection, a real historical-API call — none of which are reachable f
 environment. Run `ingestion/run_ingestion.py` yourself against a real session to close
 that gap.**
 
+## Phase 3 — Indicators, multi-timeframe resampling, backtest harness with structural look-ahead prevention
+
+What exists after Phase 3:
+
+- `data/resample.py` — the single source of truth for turning stored 1-minute candles
+  into analysis-ready DataFrames. `candles_to_dataframe()` filters to `is_closed=True`
+  rows only (a partial bar simply cannot appear downstream). `resample_candles()` builds
+  session-anchored 3/5/15/30/60-min bars from those 1-minute bars and marks each resampled
+  bucket `is_closed` only if the underlying 1-minute data actually covers it — a bucket
+  that's still forming (e.g. a 15:16 partial 15-min bar) is never reported as closed, while
+  a genuinely short final bucket caused by the 375-minute session not dividing evenly into
+  30-min blocks (the last block of the day is only 15 minutes) correctly IS marked closed,
+  since the session really did end there.
+- `strategies/indicators.py` — VWAP (session-anchored), EMA (9/20/50/200 via `ema(df, period)`),
+  RSI (Wilder), MACD, ATR (Wilder), Bollinger Bands, ADX (Wilder, with +DI/-DI), volume
+  statistics (rolling average + ratio). Every function is pure: DataFrame in, a typed
+  `IndicatorSeries`/`MACDResult`/`BollingerBandsResult`/`ADXResult`/`VolumeStatsResult` out.
+  No I/O, no network calls, no global state, per the project's strategy-layer rule.
+- `backtesting/harness.py` — `run_backtest()`: a walk-forward engine where the structural
+  guarantee is that at decision index `i`, the strategy function is handed
+  `candles.iloc[:i+1]` — a real pandas slice that does not contain row `i+1` or beyond, not
+  a convention the strategy is trusted to respect. A signal fires at bar `i`'s close and
+  executes at bar `i+1`'s open (never an optimistic same-bar fill). This is a minimal
+  harness scoped to prove the no-lookahead property and produce basic trade metrics (win
+  rate, avg R, max drawdown, profit factor) — it does not yet model brokerage/slippage/lot
+  sizing; that arrives in Phase 7 when `PaperExecutor` plugs into this same walk-forward
+  core.
+
+### How to run it yourself
+
+```bash
+python -m pytest tests/test_indicators.py tests/test_resample.py tests/test_backtest_harness.py -v
+```
+
+No credentials or network access are needed for any of Phase 3 — it operates purely on
+DataFrames, so unlike Phases 1-2 everything here really was run end-to-end in this
+environment, not just exercised against simulated failures.
+
+### Phase 3 tested/untested
+
+| Component | How tested | Result | Untested because |
+|---|---|---|---|
+| EMA | Cross-checked against an independent pure-Python recursive EMA implementation (not pandas) on a 10-bar series | Exact match (rel tol 1e-9) | — fully tested |
+| ATR (Wilder) | Cross-checked against an independent pure-Python Wilder ATR implementation on a 10-bar series | Exact match (rel tol 1e-9) | — fully tested |
+| RSI | Property tests (bounded 0-100, all-gains-series is exactly 100) + degenerate flat-price case (must not be NaN/crash) | All pass | Not cross-checked against an independent reference implementation the way EMA/ATR were — bounded/property tests give weaker assurance than an exact-match test |
+| MACD | Internal-consistency check: `histogram == macd_line - signal_line` exactly, on a 30-bar series | Passes | Not cross-checked against an independent reference implementation |
+| Bollinger Bands | Ordering property (`upper >= middle >= lower`) + zero-variance collapse case | Passes | Not cross-checked against an independent reference implementation |
+| ADX / +DI / -DI | Bounded 0-100 property test on a 60-bar random-walk series (seeded, reproducible) | Passes | Not cross-checked against an independent reference implementation — Wilder's ADX has several documented variants in practice; this implementation is one standard formulation, not verified against a second source |
+| Volume stats | Exact match against manually computed rolling mean; ratio > 1 on an injected volume spike | Passes | — fully tested |
+| VWAP | Session reset verified across a synthetic 2-day dataset (day 2's VWAP is unaffected by day 1's much higher prices); bounded-by-day's-high/low property check | Passes | — fully tested |
+| Multi-timeframe resampling (5-min full coverage, partial-final-bucket exclusion, session-end short-bucket correctly still closed, 1-min passthrough, unsupported timeframe rejection, empty input) | `pytest tests/test_resample.py` (8 tests) | All pass | — fully tested |
+| Backtest harness structural look-ahead prevention | `pytest tests/test_backtest_harness.py::test_lookahead_structurally_impossible` — a strategy that tries to index one row past what it was given, asserting `IndexError` is raised (not "the value happens to be right") | Passes | — fully tested, and the strongest form of this test available: it proves the future row is structurally absent, not merely unread |
+| Backtest harness never exposes more rows than the decision index, and full-dataset max timestamp never visible early | `pytest tests/test_backtest_harness.py` (2 tests) | Both pass | — fully tested |
+| Trade simulation (target hit, stop-loss hit, entry at next-bar open not signal-bar close, no overlapping trades, end-of-data with no future bar produces no trade, multi-trade summary metrics) | `pytest tests/test_backtest_harness.py` (6 tests) | All pass | — fully tested against synthetic OHLC data; never run against real historical data since that requires the historical endpoint, which needs credentials/network unavailable here |
+
+**Bottom line: 107/107 pytest tests pass. Phase 3 is the first phase with no
+credential/network dependency at all, so every piece of it — including the specific
+mechanism that prevents look-ahead bias, which is the single most important correctness
+property of a backtester — was actually run and verified in this environment, not just
+implemented and asserted to work.**
+
 ## Known limitations
 
 - **Rate limits and historical-candle lookback windows are unverified placeholders**
@@ -204,8 +265,18 @@ that gap.**
   not official docs.** If the real response nests differently, `fetch_historical_candles`
   will raise on the first real call rather than silently misparsing (it unpacks a fixed
   6-tuple per row) — but verify against docs before relying on backfill in anger.
-- **Base candle timeframe is 1 minute only.** Multi-timeframe resampling (3/5/15/30/60 min)
-  from these closed 1-minute bars is Phase 3 work, not yet built.
+- **Base candle timeframe is 1 minute**; 3/5/15/30/60-min resampling is built (Phase 3) on
+  top of it, session-anchored and partial-bar-safe.
+- **RSI, MACD, Bollinger Bands, and ADX were verified with property/consistency tests, not
+  against an independent reference implementation** the way EMA and ATR were. They follow
+  standard textbook formulations (Wilder smoothing where applicable), but if you need
+  bit-for-bit parity with a specific charting platform, cross-check independently — ADX in
+  particular has multiple documented variants in practice.
+- **The Phase 3 backtest harness is intentionally minimal**: one open trade at a time, next-
+  bar-open fills, no brokerage/slippage/lot-size modeling, and a conservative same-bar
+  stop-and-target-both-hit tiebreak (assumes the worse outcome, since OHLC data alone can't
+  tell you the intrabar sequence). Phase 7's `PaperExecutor` will plug a more realistic fill
+  model into this same walk-forward core rather than replacing it.
 - This is a personal paper-trading tool, not a production system. Security hardening,
   secrets management, and regulatory compliance are your responsibility if you extend this
   toward live use.
