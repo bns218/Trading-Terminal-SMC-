@@ -38,6 +38,8 @@ ENDPOINT_LIMITS: dict[str, EndpointLimit] = {
     "order": EndpointLimit(requests_per_second=1.0, burst=1, verified=False),
     "option_greek": EndpointLimit(requests_per_second=0.5, burst=1, verified=False),
     "gainers_losers": EndpointLimit(requests_per_second=0.3, burst=1, verified=False),
+    "pcr": EndpointLimit(requests_per_second=0.3, burst=1, verified=False),
+    "oi_buildup": EndpointLimit(requests_per_second=0.3, burst=1, verified=False),
     "login": EndpointLimit(requests_per_second=0.1, burst=1, verified=False),
     "websocket_subscribe": EndpointLimit(requests_per_second=1.0, burst=50, verified=False),
 }

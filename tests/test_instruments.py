@@ -59,6 +59,18 @@ def test_strike_and_tick_size_scaling():
     assert inst.tick_size == Decimal("0.05")
 
 
+def test_option_type_parsed_from_symbol_suffix():
+    pe = InstrumentMaster._parse_record(SAMPLE_RECORDS[1])
+    ce = InstrumentMaster._parse_record(SAMPLE_RECORDS[2])
+    assert pe.option_type.value == "PE"
+    assert ce.option_type.value == "CE"
+
+
+def test_option_type_none_for_equity():
+    inst = InstrumentMaster._parse_record(SAMPLE_RECORDS[0])
+    assert inst.option_type is None
+
+
 def test_equity_record_has_no_strike_or_expiry():
     inst = InstrumentMaster._parse_record(SAMPLE_RECORDS[0])
     assert inst.strike is None

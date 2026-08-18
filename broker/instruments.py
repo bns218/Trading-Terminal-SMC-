@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 
 from broker.exceptions import InstrumentMasterError
-from data.models import Exchange, Instrument, InstrumentType
+from data.models import Exchange, Instrument, InstrumentType, OptionType
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,14 @@ class InstrumentMaster:
             lot_size_raw = record.get("lotsize")
             lot_size = int(lot_size_raw) if lot_size_raw else 1
 
+            option_type = None
+            if instrument_type in (InstrumentType.OPTSTK, InstrumentType.OPTIDX):
+                symbol = record["symbol"]
+                if symbol.endswith("CE"):
+                    option_type = OptionType.CE
+                elif symbol.endswith("PE"):
+                    option_type = OptionType.PE
+
             return Instrument(
                 token=str(record["token"]),
                 symbol=record["symbol"],
@@ -121,6 +129,7 @@ class InstrumentMaster:
                 expiry=expiry,
                 strike=strike,
                 freeze_quantity=None,  # not present in this source; see Phase 0 matrix
+                option_type=option_type,
             )
         except (KeyError, InvalidOperation, ValueError) as exc:
             logger.debug("Skipping unparseable instrument record %r: %s", record, exc)

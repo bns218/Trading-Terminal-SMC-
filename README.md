@@ -319,6 +319,78 @@ error, not by adjusting the test to match buggy output. What's genuinely unteste
 real-world detection quality — that requires your own historical data and judgment, since
 these are inherently subjective pattern definitions.**
 
+## Phase 5 — Option chain construction and options analytics
+
+What exists after Phase 5:
+
+- `data/models.py` — `Instrument.option_type` (CE/PE, parsed from the instrument master's
+  symbol suffix), `OptionContract` (a strike's paired call+put legs), `OptionChainSnapshot`.
+  `DerivedMetric.value` is now `Decimal | float | str` (was `Decimal`-only) so the same
+  provenance-carrying type can hold a max-pain strike (Decimal), an IV/Greek (float), or an
+  OI-buildup category label (str) without inventing three parallel types.
+- `strategies/option_chain.py` — `build_option_chain()`: pairs CE/PE legs by strike from
+  instrument-master records (already filtered to a name+expiry) and a caller-supplied
+  quotes map. Pure — no I/O, matching every other strategies/ module. A missing leg or
+  missing quote is `None` on the contract, never silently dropped from the chain.
+- `strategies/options_pricing.py` — Black-Scholes (stock options) and Black-76 (index
+  options) pricing, Greeks, and implied volatility (Newton-Raphson with a bisection
+  fallback, returning `None` — not a fabricated number — when a quoted price is outside
+  what any volatility in (0.01%, 500%) could produce). This is the documented fallback for
+  where Angel One's Option Greek API has gaps.
+- `strategies/options_analytics.py` — ATM/ITM/OTM classification, PCR, max pain (the
+  standard "settlement strike that minimizes aggregate ITM payout to option holders"
+  definition), OI-buildup classification from the price-change × OI-change matrix, Call OI
+  resistance / Put OI support. Everything here is tagged `source="computed_chain"`.
+- `broker/options_api.py` — thin, rate-limited wrappers around the SmartAPI SDK methods
+  confirmed to exist by directly introspecting the installed `smartapi-python==1.5.5`
+  package (`optionGreek`, `putCallRatio`, `oIBuildup`, `gainersLosers`) — this is the
+  `source="angelone_api"` half of the confirmed Phase 0 decision to show PCR/OI-buildup
+  both ways rather than picking one. Returns raw response rows; wrapping a specific field
+  into a `DerivedMetric` is left to the caller.
+
+Per the decision confirmed earlier in this project: **PCR and OI-buildup are always
+computed client-side from the constructed chain** (`options_analytics.py`,
+`source="computed_chain"`) **and** available from Angel One's own endpoints
+(`options_api.py`, `source="angelone_api"`) — shown side by side, never one silently
+overriding the other.
+
+### How to run it yourself
+
+```bash
+python -m pytest tests/test_option_chain.py tests/test_options_pricing.py tests/test_options_analytics.py tests/test_options_api.py -v
+```
+
+`strategies/option_chain.py`, `options_pricing.py`, and `options_analytics.py` need no
+credentials or network access (same as Phases 3-4). `broker/options_api.py` is tested
+against a mocked SmartAPI client, same pattern as Phase 2's `ingestion/backfill.py` — the
+real endpoints were never called, since no credentials/network path exist here.
+
+### Phase 5 tested/untested
+
+| Component | How tested | Result | Untested because |
+|---|---|---|---|
+| `option_type` (CE/PE) parsing from the instrument master | `pytest tests/test_instruments.py` (2 new tests) | Passes | — fully tested |
+| Option chain construction (CE/PE pairing by strike, ascending sort, missing-leg/missing-quote handling, non-option instruments ignored) | `pytest tests/test_option_chain.py` (6 tests) | All pass | — fully tested |
+| Black-Scholes pricing | Cross-checked against a widely-cited textbook reference (Hull, S=42/K=40/r=10%/σ=20%/T=0.5y → call≈4.76, put≈0.81) | Matches within 0.01 | — fully tested against an independent published reference, not just internal consistency |
+| Black-Scholes / Black-76 put-call parity | `C - P == S - K·e^(-rT)` (BS) and `C - P == e^(-rT)(F-K)` (Black-76), checked to 1e-9 | Exact match | — fully tested; parity is a model-independent no-arbitrage identity, so this is a strong correctness check |
+| Implied volatility round-trip (BS and Black-76, ITM/OTM/index cases) | Price computed from a known σ, then IV solver run on that price, checked recovers σ to 1e-4 | All pass | — fully tested |
+| IV solver returns `None` (not a fabricated value) for a price outside no-arbitrage bounds | `pytest tests/test_options_pricing.py::test_iv_returns_none_for_price_outside_no_arbitrage_bounds` | Passes | — fully tested |
+| Greeks (delta bounds for deep ITM/OTM, gamma positivity and ATM peak, vega positivity, call/put gamma-vega equality identity) | `pytest tests/test_options_pricing.py` (6 tests) | All pass | — fully tested |
+| ATM strike selection, ITM/OTM classification for calls and puts | `pytest tests/test_options_analytics.py` (5 tests) | All pass | — fully tested |
+| PCR computation | `pytest tests/test_options_analytics.py` (2 tests) | All pass | — fully tested |
+| Max pain | Hand-computed 3-strike example (heavy call OI at one end, heavy put OI at the other) worked out on paper before running, confirming the algorithm finds the middle strike where neither side's concentrated OI gets triggered | Matches hand computation exactly | — fully tested |
+| OI-buildup classification (all 4 quadrants + 2 neutral edge cases) | `pytest tests/test_options_analytics.py` (6 tests) | All pass | — fully tested |
+| Call OI resistance / Put OI support | `pytest tests/test_options_analytics.py` (3 tests) | All pass | — fully tested |
+| `broker/options_api.py` wrappers (data extraction, throttle/error propagation) | `pytest tests/test_options_api.py` (6 tests) against a mocked `SmartConnect` | All pass | Real endpoint response shapes for `optionGreek`/`putCallRatio`/`oIBuildup`/`gainersLosers` are NOT verified against official docs (domain blocked) — only against forum-reported examples. A real call could return a differently-shaped response than assumed here. |
+| Real option-chain construction against a live instrument master + live quotes | Not run | Unknown | Requires a live broker session (Phase 1's same constraint) — you'll need to run this yourself once you have real credentials |
+
+**Bottom line: 220/220 pytest tests pass.** The pricing math is the strongest-verified part
+of this whole project so far — cross-checked against both a published textbook reference
+and a model-independent no-arbitrage identity (put-call parity), not just internal
+self-consistency. What's unverified is real API response shapes (docs-blocked, same
+constraint as every prior phase) and real-market chain construction (needs your
+credentials).
+
 ## Known limitations
 
 - **Rate limits and historical-candle lookback windows are unverified placeholders**
@@ -367,6 +439,19 @@ these are inherently subjective pattern definitions.**
   educators define slightly different windows. The DST-correctness mechanism (converting
   per-timestamp via `zoneinfo` rather than a fixed offset) is solid; the specific hours in
   `config/ict_settings.py` are a starting point to adjust to your own convention.
+- **Options pricing (`strategies/options_pricing.py`) assumes no dividends** (relevant for
+  stock options — a real dividend yield would lower a call's theoretical price relative to
+  what this module computes) and **uses calendar-days/365 for time-to-expiry**, not a
+  trading-day count — one reasonable convention among several.
+- **`broker/options_api.py` request/response shapes are based on SmartAPI forum examples,
+  not verified official docs.** In particular, `putCallRatio()` takes no parameters per the
+  SDK signature and its exact response shape (single value vs. per-symbol listing) is
+  unconfirmed — re-check before relying on it.
+- **Black-76 pricing takes a `forward` price as a parameter but does not compute one for
+  you** — for NIFTY/BANKNIFTY index options, the theoretically correct input is the
+  matching-expiry futures price, not spot; passing spot as a stand-in for the forward
+  (common in practice when the futures price isn't separately fetched) is a further
+  simplification you'd be making at the call site, not something this module does silently.
 - **The Phase 3 backtest harness is intentionally minimal**: one open trade at a time, next-
   bar-open fills, no brokerage/slippage/lot-size modeling, and a conservative same-bar
   stop-and-target-both-hit tiebreak (assumes the worse outcome, since OHLC data alone can't
