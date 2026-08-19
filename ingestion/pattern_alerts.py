@@ -50,6 +50,24 @@ DETECTION_WINDOW = 200
 
 POLL_SECONDS = 20
 
+# Skip patterns with no directional bias. In practice this drops every Doji and
+# Inside Bar (always "neutral") plus the neutral variant of Harami — the bulk of
+# raw detections, and the least actionable. Directional Harami, Hammer,
+# Shooting Star, Engulfing, Pin Bar, Morning/Evening Star still alert normally.
+# Set to False to get every detection back.
+SKIP_NEUTRAL_PATTERNS = True
+
+# Which categories actually get sent to Telegram. Default is SMC Pro signals
+# only: those already require confluence (swing BOS + EMA + VWAP + ADX +
+# volume + order block) and must clear a minimum score, so they're far rarer
+# and more actionable than raw pattern hits. Raw chart/candlestick patterns
+# fire on nearly every bar across 200+ symbols — they stay available in the
+# dashboard's Patterns tab, they're just not pushed as notifications.
+# Flip either flag to True to add that category back.
+ALERT_CHART_PATTERNS = False
+ALERT_CANDLESTICK_PATTERNS = False
+ALERT_SMC_PRO_SIGNALS = True
+
 
 def load_universe(path: Path) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -124,26 +142,33 @@ def check_one(store: TickStore, calendar: MarketCalendar, telegram: TelegramClie
     last_idx = len(df) - 1
     sent = 0
 
-    candlestick_events = [e for e in candlestick.detect_all_candlestick_patterns(df) if e.bar_index == last_idx]
-    chart_events = [
-        e for e in (
+    def is_alertable(e) -> bool:
+        if e.bar_index != last_idx:
+            return False
+        return not (SKIP_NEUTRAL_PATTERNS and e.direction == "neutral")
+
+    # Detection is skipped entirely for disabled categories — no point paying
+    # for detectors whose output would be discarded on every single bar.
+    if ALERT_CANDLESTICK_PATTERNS:
+        for e in (e for e in candlestick.detect_all_candlestick_patterns(df) if is_alertable(e)):
+            if telegram.send_message(_pattern_message(entry["symbol"], timeframe, "Candlestick Pattern", e)):
+                sent += 1
+
+    if ALERT_CHART_PATTERNS:
+        chart_events = (
             detect_double_top(df) + detect_double_bottom(df)
             + detect_head_and_shoulders(df) + detect_inverse_head_and_shoulders(df)
         )
-        if e.bar_index == last_idx
-    ]
-    zones = smc_pro.detect_order_blocks_and_breakers(df)
-    signals = [s for s in smc_pro.compute_trade_signals(df, zones) if s.bar_index == last_idx]
+        for e in (e for e in chart_events if is_alertable(e)):
+            if telegram.send_message(_pattern_message(entry["symbol"], timeframe, "Chart Pattern", e)):
+                sent += 1
 
-    for e in candlestick_events:
-        if telegram.send_message(_pattern_message(entry["symbol"], timeframe, "Candlestick Pattern", e)):
-            sent += 1
-    for e in chart_events:
-        if telegram.send_message(_pattern_message(entry["symbol"], timeframe, "Chart Pattern", e)):
-            sent += 1
-    for s in signals:
-        if telegram.send_message(_signal_message(entry["symbol"], timeframe, s)):
-            sent += 1
+    if ALERT_SMC_PRO_SIGNALS:
+        zones = smc_pro.detect_order_blocks_and_breakers(df)
+        for s in (s for s in smc_pro.compute_trade_signals(df, zones) if s.bar_index == last_idx):
+            if telegram.send_message(_signal_message(entry["symbol"], timeframe, s)):
+                sent += 1
+
     return sent
 
 
