@@ -13,11 +13,17 @@ SQLite file, per this project's existing process model.
 Usage:
 
     python -m ingestion.pattern_alerts
+
+    # one-shot: replay detection over the latest stored bars and send real
+    # (clearly DEMO-labelled) Telegram alerts, to verify the alert path
+    # without waiting for a live session
+    python -m ingestion.pattern_alerts --demo
 """
 from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -183,6 +189,53 @@ def run_once(store: TickStore, calendar: MarketCalendar, telegram: TelegramClien
     return total
 
 
+def run_demo(store: TickStore, calendar: MarketCalendar, telegram: TelegramClient, universe: list[dict], symbol_limit: int, max_alerts: int) -> int:
+    """Send real Telegram alerts for whatever the detectors find on the most
+    recent stored bar, so the end-to-end alert path can be verified without
+    waiting for a live session.
+
+    These are genuine detections from real stored candles — not fabricated
+    messages — but they are re-detections of ALREADY-CLOSED historical bars,
+    not live signals. Each is labelled DEMO in the message so a demo alert
+    can never be mistaken for a live trade signal arriving during market
+    hours. Capped at `max_alerts` so a demo can't flood the chat.
+    """
+    subset = universe[:symbol_limit]
+    state = MonitorState()
+    # Pre-seed with a sentinel so check_one treats every key as "seen before"
+    # (not a first sighting) and therefore actually runs detection instead of
+    # just recording a baseline.
+    for entry in subset:
+        for tf in timeframes_for(entry["kind"]):
+            state.last_seen_close[(entry["token"], tf)] = "__demo_force_stale__"
+
+    collected: list[str] = []
+
+    class _Collector:
+        def send_message(self, text: str, timeout: float = 10.0) -> bool:
+            collected.append(text)
+            return True
+
+    run_once(store, calendar, _Collector(), subset, state)
+
+    telegram.send_message(
+        f"🧪 <b>DEMO RUN</b>\nReplaying detection over the latest stored bars for "
+        f"{len(subset)} symbols.\nFound {len(collected)} signal(s); sending up to {max_alerts}.\n"
+        f"<i>These are historical re-detections, not live signals.</i>"
+    )
+
+    sent = 0
+    for text in collected[:max_alerts]:
+        if telegram.send_message("🧪 <b>[DEMO]</b>\n" + text):
+            sent += 1
+
+    telegram.send_message(
+        f"🧪 <b>DEMO COMPLETE</b>\nSent {sent} demo alert(s).\n"
+        f"Live alerts resume automatically at the next session (09:15 IST)."
+    )
+    return sent
+
+
 def main() -> int:
     settings = get_settings()
     configure_logging(settings.log_dir, settings.log_level)
@@ -197,6 +250,12 @@ def main() -> int:
     calendar = MarketCalendar(settings.holidays_file)
     telegram = TelegramClient(bot_token, settings.telegram_chat_id)
     state = MonitorState()
+
+    if "--demo" in sys.argv:
+        logger.info("Running one-shot demo (no live loop).")
+        sent = run_demo(store, calendar, telegram, universe, symbol_limit=40, max_alerts=8)
+        logger.info("Demo complete: %d alert(s) sent.", sent)
+        return 0
 
     logger.info("Pattern alert monitor started: %d symbols, poll every %ds", len(universe), POLL_SECONDS)
     try:
