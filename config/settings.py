@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     dhan_client_id: SecretStr = Field(default=SecretStr(""))
     dhan_access_token: SecretStr = Field(default=SecretStr(""))
 
+    # Telegram bot — used only for pattern/signal alerts (ingestion/pattern_alerts.py).
+    # Not a broker credential; a delivery channel only.
+    telegram_bot_token: SecretStr = Field(default=SecretStr(""))
+    telegram_chat_id: str = Field(default="")
+
     # Trading mode is intentionally NOT settable to anything but PAPER here.
     # engine/execution/ enforces this independently — this field exists only
     # for logging/display, so a code review can grep for one source of truth.
