@@ -1,0 +1,1274 @@
+[
+  {
+    "symbol": "BANKNIFTY",
+    "token": "26009",
+    "exchange": "NSE",
+    "kind": "index"
+  },
+  {
+    "symbol": "FINNIFTY",
+    "token": "26037",
+    "exchange": "NSE",
+    "kind": "index"
+  },
+  {
+    "symbol": "MIDCPNIFTY",
+    "token": "26074",
+    "exchange": "NSE",
+    "kind": "index"
+  },
+  {
+    "symbol": "NIFTY",
+    "token": "26000",
+    "exchange": "NSE",
+    "kind": "index"
+  },
+  {
+    "symbol": "360ONE",
+    "token": "13061",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ABB",
+    "token": "13",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ABCAPITAL",
+    "token": "21614",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ADANIENSOL",
+    "token": "10217",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ADANIENT",
+    "token": "25",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ADANIGREEN",
+    "token": "3563",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ADANIPORTS",
+    "token": "15083",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ADANIPOWER",
+    "token": "17388",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ALKEM",
+    "token": "11703",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "AMBER",
+    "token": "1185",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "AMBUJACEM",
+    "token": "1270",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ANGELONE",
+    "token": "324",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "APLAPOLLO",
+    "token": "25780",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "APOLLOHOSP",
+    "token": "157",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ASHOKLEY",
+    "token": "212",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ASIANPAINT",
+    "token": "236",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ASTRAL",
+    "token": "14418",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "AUBANK",
+    "token": "21238",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "AUROPHARMA",
+    "token": "275",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "AXISBANK",
+    "token": "5900",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BAJAJ-AUTO",
+    "token": "16669",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BAJAJFINSV",
+    "token": "16675",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BAJAJHLDNG",
+    "token": "305",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BAJFINANCE",
+    "token": "317",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BANDHANBNK",
+    "token": "2263",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BANKBARODA",
+    "token": "4668",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BANKINDIA",
+    "token": "4745",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BDL",
+    "token": "2144",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BEL",
+    "token": "383",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BHARATFORG",
+    "token": "422",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BHARTIARTL",
+    "token": "10604",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BHEL",
+    "token": "438",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BIOCON",
+    "token": "11373",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BLUESTARCO",
+    "token": "8311",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BOSCHLTD",
+    "token": "2181",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BPCL",
+    "token": "526",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BRITANNIA",
+    "token": "547",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "BSE",
+    "token": "19585",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CAMS",
+    "token": "342",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CANBK",
+    "token": "10794",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CDSL",
+    "token": "21174",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CGPOWER",
+    "token": "760",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CHOLAFIN",
+    "token": "685",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CIPLA",
+    "token": "694",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "COALINDIA",
+    "token": "20374",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "COCHINSHIP",
+    "token": "21508",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "COFORGE",
+    "token": "11543",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "COLPAL",
+    "token": "15141",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CONCOR",
+    "token": "4749",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CROMPTON",
+    "token": "17094",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "CUMMINSIND",
+    "token": "1901",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DABUR",
+    "token": "772",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DALBHARAT",
+    "token": "8075",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DELHIVERY",
+    "token": "9599",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DIVISLAB",
+    "token": "10940",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DIXON",
+    "token": "21690",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DLF",
+    "token": "14732",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DMART",
+    "token": "19913",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "DRREDDY",
+    "token": "881",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "EICHERMOT",
+    "token": "910",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ETERNAL",
+    "token": "5097",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "FEDERALBNK",
+    "token": "1023",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "FORCEMOT",
+    "token": "11573",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "FORTIS",
+    "token": "14592",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GAIL",
+    "token": "4717",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GLENMARK",
+    "token": "7406",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GMRAIRPORT",
+    "token": "13528",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GODFRYPHLP",
+    "token": "1181",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GODREJCP",
+    "token": "10099",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GODREJPROP",
+    "token": "17875",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GRASIM",
+    "token": "1232",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "GVT&D",
+    "token": "16783",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HAL",
+    "token": "2303",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HAVELLS",
+    "token": "9819",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HCLTECH",
+    "token": "7229",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HDFCAMC",
+    "token": "4244",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HDFCBANK",
+    "token": "1333",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HDFCLIFE",
+    "token": "467",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HEROMOTOCO",
+    "token": "1348",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HINDALCO",
+    "token": "1363",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HINDPETRO",
+    "token": "1406",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HINDUNILVR",
+    "token": "1394",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HINDZINC",
+    "token": "1424",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "HYUNDAI",
+    "token": "25844",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ICICIBANK",
+    "token": "4963",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ICICIGI",
+    "token": "21770",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ICICIPRULI",
+    "token": "18652",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "IDEA",
+    "token": "14366",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "IDFCFIRSTB",
+    "token": "11184",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "IEX",
+    "token": "220",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "INDHOTEL",
+    "token": "1512",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "INDIANB",
+    "token": "14309",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "INDIGO",
+    "token": "11195",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "INDUSINDBK",
+    "token": "5258",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "INDUSTOWER",
+    "token": "29135",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "INFY",
+    "token": "1594",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "INOXWIND",
+    "token": "7852",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "IOC",
+    "token": "1624",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "IREDA",
+    "token": "20261",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "IRFC",
+    "token": "2029",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ITC",
+    "token": "1660",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "JINDALSTEL",
+    "token": "6733",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "JIOFIN",
+    "token": "18143",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "JSWENERGY",
+    "token": "17869",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "JSWSTEEL",
+    "token": "11723",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "JUBLFOOD",
+    "token": "18096",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "KALYANKJIL",
+    "token": "2955",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "KAYNES",
+    "token": "12092",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "KEI",
+    "token": "13310",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "KFINTECH",
+    "token": "13359",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "KOTAKBANK",
+    "token": "1922",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "KPITTECH",
+    "token": "9683",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LAURUSLABS",
+    "token": "19234",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LICHSGFIN",
+    "token": "1997",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LICI",
+    "token": "9480",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LODHA",
+    "token": "3220",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LT",
+    "token": "11483",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LTF",
+    "token": "24948",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LTM",
+    "token": "17818",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "LUPIN",
+    "token": "10440",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "M&M",
+    "token": "2031",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MANAPPURAM",
+    "token": "19061",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MANKIND",
+    "token": "15380",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MARICO",
+    "token": "4067",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MARUTI",
+    "token": "10999",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MAXHEALTH",
+    "token": "22377",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MAZDOCK",
+    "token": "509",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MCX",
+    "token": "31181",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MFSL",
+    "token": "2142",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MOTHERSON",
+    "token": "25510",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MOTILALOFS",
+    "token": "14947",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MPHASIS",
+    "token": "4503",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "MUTHOOTFIN",
+    "token": "23650",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NAM-INDIA",
+    "token": "357",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NATIONALUM",
+    "token": "6364",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NAUKRI",
+    "token": "13751",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NBCC",
+    "token": "31415",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NESTLEIND",
+    "token": "17963",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NHPC",
+    "token": "17400",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NMDC",
+    "token": "15332",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NTPC",
+    "token": "11630",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "NYKAA",
+    "token": "6545",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "OBEROIRLTY",
+    "token": "20242",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "OFSS",
+    "token": "10738",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "OIL",
+    "token": "17438",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ONGC",
+    "token": "2475",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PAGEIND",
+    "token": "14413",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PATANJALI",
+    "token": "17029",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PAYTM",
+    "token": "6705",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PERSISTENT",
+    "token": "18365",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PETRONET",
+    "token": "11351",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PFC",
+    "token": "14299",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PGEL",
+    "token": "25358",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PHOENIXLTD",
+    "token": "14552",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PIDILITIND",
+    "token": "2664",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PIIND",
+    "token": "24184",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PNB",
+    "token": "10666",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PNBHOUSING",
+    "token": "18908",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "POLICYBZR",
+    "token": "6656",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "POLYCAB",
+    "token": "9590",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "POWERGRID",
+    "token": "14977",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "POWERINDIA",
+    "token": "18457",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PREMIERENE",
+    "token": "25049",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "PRESTIGE",
+    "token": "20302",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "RADICO",
+    "token": "10990",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "RBLBANK",
+    "token": "18391",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "RECLTD",
+    "token": "15355",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "RELIANCE",
+    "token": "2885",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "RVNL",
+    "token": "9552",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SAIL",
+    "token": "2963",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SBICARD",
+    "token": "17971",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SBILIFE",
+    "token": "21808",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SBIN",
+    "token": "3045",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SHREECEM",
+    "token": "3103",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SHRIRAMFIN",
+    "token": "4306",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SIEMENS",
+    "token": "3150",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SOLARINDS",
+    "token": "13332",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SONACOMS",
+    "token": "4684",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SRF",
+    "token": "3273",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SUNPHARMA",
+    "token": "3351",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SUPREMEIND",
+    "token": "3363",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SUZLON",
+    "token": "12018",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "SWIGGY",
+    "token": "27066",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TATACONSUM",
+    "token": "3432",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TATAELXSI",
+    "token": "3411",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TATAPOWER",
+    "token": "3426",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TATASTEEL",
+    "token": "3499",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TCS",
+    "token": "11536",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TECHM",
+    "token": "13538",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TIINDIA",
+    "token": "312",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TITAN",
+    "token": "3506",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TMPV",
+    "token": "3456",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TORNTPHARM",
+    "token": "3518",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TRENT",
+    "token": "1964",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "TVSMOTOR",
+    "token": "8479",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ULTRACEMCO",
+    "token": "11532",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "UNIONBANK",
+    "token": "10753",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "UNITDSPR",
+    "token": "10447",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "UNOMINDA",
+    "token": "14154",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "UPL",
+    "token": "11287",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "VBL",
+    "token": "18921",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "VEDL",
+    "token": "3063",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "VMM",
+    "token": "27969",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "VOLTAS",
+    "token": "3718",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "WAAREEENER",
+    "token": "25907",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "WIPRO",
+    "token": "3787",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "YESBANK",
+    "token": "11915",
+    "exchange": "NSE",
+    "kind": "stock"
+  },
+  {
+    "symbol": "ZYDUSLIFE",
+    "token": "7929",
+    "exchange": "NSE",
+    "kind": "stock"
+  }
+]

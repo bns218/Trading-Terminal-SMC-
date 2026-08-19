@@ -12,10 +12,12 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from broker.angelone_client import AngelOneClient
 from broker.exceptions import RateLimitedError
 from broker.ratelimit import call_with_retry
+from config.smartapi_limits import HISTORICAL_LOOKBACK_DAYS
 from data.database import TickStore
 from data.models import Exchange, Instrument
 from ingestion.candle_builder import BASE_TIMEFRAME_LABEL, BASE_TIMEFRAME_SECONDS
@@ -23,6 +25,7 @@ from ingestion.candle_builder import BASE_TIMEFRAME_LABEL, BASE_TIMEFRAME_SECOND
 logger = logging.getLogger(__name__)
 
 _THROTTLE_ERROR_CODES = {"AB1004", "AB2000"}
+_IST = ZoneInfo("Asia/Kolkata")
 
 
 def fetch_historical_candles(
@@ -34,8 +37,12 @@ def fetch_historical_candles(
                 "exchange": instrument.exchange.value,
                 "symboltoken": instrument.token,
                 "interval": interval,
-                "fromdate": from_dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
-                "todate": to_dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                # SmartAPI's historical endpoint expects fromdate/todate as exchange-local
+                # (IST) wall-clock strings, not UTC — confirmed against a live response
+                # (bars come back with "+05:30" offsets) after UTC-formatted requests were
+                # silently returning zero rows despite status=SUCCESS.
+                "fromdate": from_dt.astimezone(_IST).strftime("%Y-%m-%d %H:%M"),
+                "todate": to_dt.astimezone(_IST).strftime("%Y-%m-%d %H:%M"),
             }
         )
         if not response or not response.get("status"):
@@ -104,4 +111,68 @@ def backfill_gaps(
             f"token={instrument.token} gap={gap_start.isoformat()}..{gap_end.isoformat()} bars={len(candles)}",
         )
         logger.info("Backfilled %d bars for %s in gap %s..%s", len(candles), instrument.symbol, gap_start.isoformat(), gap_end.isoformat())
+    return total_filled
+
+
+def backfill_range(
+    client: AngelOneClient,
+    store: TickStore,
+    instrument: Instrument,
+    from_dt: datetime,
+    to_dt: datetime,
+    interval_api: str = "ONE_MINUTE",
+    timeframe_label: str = BASE_TIMEFRAME_LABEL,
+    expected_step_seconds: int = BASE_TIMEFRAME_SECONDS,
+) -> int:
+    """Download an explicit historical window (not gap-only) in
+    per-endpoint-limit-sized chunks, oldest chunk first. Used for the initial
+    load of history rather than filling a disconnect gap.
+    """
+    chunk_days = HISTORICAL_LOOKBACK_DAYS.get(interval_api, 30)
+    chunk = timedelta(days=chunk_days)
+    total_filled = 0
+    cursor = from_dt
+    while cursor < to_dt:
+        chunk_end = min(cursor + chunk, to_dt)
+        # SmartAPI's historical endpoint returns zero rows (despite status=SUCCESS)
+        # for windows whose from/to clock time falls outside the NSE session, even
+        # though the window otherwise spans valid trading days. Snap each chunk's
+        # boundary times to the session open/close so every request looks like the
+        # known-good shape (confirmed against a live call).
+        request_from = datetime.combine(cursor.astimezone(_IST).date(), datetime.min.time(), tzinfo=_IST).replace(hour=9, minute=15)
+        request_to = datetime.combine(chunk_end.astimezone(_IST).date(), datetime.min.time(), tzinfo=_IST).replace(hour=15, minute=30)
+        try:
+            candles = fetch_historical_candles(client, instrument, interval_api, request_from, request_to)
+        except Exception as exc:
+            logger.error(
+                "Historical fetch failed for %s window %s..%s: %s",
+                instrument.symbol, cursor.isoformat(), chunk_end.isoformat(), exc,
+            )
+            cursor = chunk_end
+            continue
+        for c in candles:
+            close_time = c["open_time"] + timedelta(seconds=expected_step_seconds)
+            store.upsert_candle(
+                instrument.token,
+                timeframe_label,
+                c["open_time"],
+                close_time,
+                c["open"],
+                c["high"],
+                c["low"],
+                c["close"],
+                c["volume"],
+                is_backfilled=True,
+                is_closed=True,
+            )
+        total_filled += len(candles)
+        logger.info(
+            "Downloaded %d bars for %s window %s..%s (running total %d)",
+            len(candles), instrument.symbol, cursor.isoformat(), chunk_end.isoformat(), total_filled,
+        )
+        cursor = chunk_end
+    store.record_health_event(
+        "historical_download",
+        f"token={instrument.token} range={from_dt.isoformat()}..{to_dt.isoformat()} bars={total_filled}",
+    )
     return total_filled

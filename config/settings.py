@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     angel_password_or_pin: SecretStr = Field(default=SecretStr(""))
     angel_totp_secret: SecretStr = Field(default=SecretStr(""))
 
+    # Dhan credentials — used only for bulk historical backfill (ingestion/dhan_historical.py),
+    # not for live trading or the paper-mode engine.
+    dhan_client_id: SecretStr = Field(default=SecretStr(""))
+    dhan_access_token: SecretStr = Field(default=SecretStr(""))
+
     # Trading mode is intentionally NOT settable to anything but PAPER here.
     # engine/execution/ enforces this independently — this field exists only
     # for logging/display, so a code review can grep for one source of truth.

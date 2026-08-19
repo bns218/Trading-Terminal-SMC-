@@ -169,6 +169,47 @@ class TickStore:
                 ),
             )
 
+    def bulk_upsert_candles(self, instrument_token: str, timeframe: str, rows: list[dict]) -> None:
+        """Same semantics as upsert_candle, but writes every row in `rows` in a
+        single transaction/connection. upsert_candle's one-connection-per-row
+        pattern is fine for live ingestion (a handful of rows/sec), but is
+        orders of magnitude too slow for bulk historical backfill (each row
+        pays a full WAL commit) — this exists for that path.
+
+        Each row dict needs: open_time, close_time, open, high, low, close,
+        volume, is_backfilled, is_closed.
+        """
+        if not rows:
+            return
+        with self._connect() as conn:
+            conn.executemany(
+                """
+                INSERT INTO candles
+                    (instrument_token, timeframe, open_time, close_time, open, high, low, close, volume, is_backfilled, is_closed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(instrument_token, timeframe, open_time) DO UPDATE SET
+                    close_time=excluded.close_time, high=excluded.high, low=excluded.low,
+                    close=excluded.close, volume=excluded.volume,
+                    is_backfilled=excluded.is_backfilled, is_closed=excluded.is_closed
+                """,
+                [
+                    (
+                        instrument_token,
+                        timeframe,
+                        r["open_time"].astimezone(timezone.utc).isoformat(),
+                        r["close_time"].astimezone(timezone.utc).isoformat(),
+                        str(r["open"]),
+                        str(r["high"]),
+                        str(r["low"]),
+                        str(r["close"]),
+                        r["volume"],
+                        int(r["is_backfilled"]),
+                        int(r["is_closed"]),
+                    )
+                    for r in rows
+                ],
+            )
+
     def get_candles(self, instrument_token: str, timeframe: str, limit: int = 500) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
@@ -181,6 +222,45 @@ class TickStore:
             ).fetchall()
         columns = ["open_time", "close_time", "open", "high", "low", "close", "volume", "is_backfilled", "is_closed"]
         return [dict(zip(columns, row)) for row in reversed(rows)]
+
+    def latest_and_prev_close(self, instrument_token: str, timeframe: str, lookback: int = 1500) -> Optional[dict]:
+        """LTP (latest stored candle's close), the previous trading day's
+        close, and the latest trading day's high/low, for a watchlist-style
+        quote card. Groups the last `lookback` candles by their UTC calendar
+        date — safe as a stand-in for the IST trading day here because the
+        whole NSE session (09:15-15:30 IST = 03:45-10:00 UTC) sits inside one
+        UTC date, never crossing midnight. Returns None if there's no data at
+        all for this token/timeframe.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT open_time, high, low, close FROM candles WHERE instrument_token = ? AND timeframe = ? "
+                "ORDER BY open_time DESC LIMIT ?",
+                (instrument_token, timeframe, lookback),
+            ).fetchall()
+        if not rows:
+            return None
+        latest_time = rows[0][0]
+        latest_close = rows[0][3]
+        latest_date = latest_time[:10]
+        day_high = float("-inf")
+        day_low = float("inf")
+        prev_close = None
+        for open_time, high, low, close in rows:
+            if open_time[:10] != latest_date:
+                prev_close = close
+                break
+            day_high = max(day_high, float(high))
+            day_low = min(day_low, float(low))
+        day_range_pct = ((day_high - day_low) / day_low * 100) if day_low > 0 else None
+        return {
+            "ltp": float(latest_close),
+            "latest_time": latest_time,
+            "prev_close": float(prev_close) if prev_close is not None else None,
+            "day_high": day_high,
+            "day_low": day_low,
+            "day_range_pct": day_range_pct,
+        }
 
     def find_gaps(self, instrument_token: str, timeframe: str, expected_step_seconds: int) -> list[tuple[datetime, datetime]]:
         """Return (gap_start, gap_end) pairs where consecutive stored candles are

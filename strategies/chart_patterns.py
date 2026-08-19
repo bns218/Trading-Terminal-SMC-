@@ -34,6 +34,12 @@ def detect_double_top(df: pd.DataFrame, lookback: int = 2, price_tolerance_pct: 
     swings = find_swing_points(df, lookback=lookback)
     highs = [s for s in swings if s.kind == "high"]
     lows = [s for s in swings if s.kind == "low"]
+    # Pre-extract to numpy: df["close"].iloc[j] inside the confirmation loop
+    # below is a pandas scalar lookup per call, which dominates runtime once
+    # a neckline goes unbroken for a long stretch and the loop runs to len(df)
+    # for many candidate pairs (each .iloc[] is ~100x an array index).
+    close = df["close"].to_numpy()
+    close_time = df["close_time"].to_numpy()
     events = []
     for i in range(len(highs) - 1):
         top1, top2 = highs[i], highs[i + 1]
@@ -43,13 +49,13 @@ def detect_double_top(df: pd.DataFrame, lookback: int = 2, price_tolerance_pct: 
         if not between_lows:
             continue
         neckline = min(l.price for l in between_lows)
-        for j in range(top2.index + 1, len(df)):
-            if df["close"].iloc[j] < neckline:
-                events.append(
-                    PatternEvent("double_top", j, df["close_time"].iloc[j], "bearish",
-                                 {"top1_index": top1.index, "top2_index": top2.index, "neckline": neckline})
-                )
-                break
+        below = np.flatnonzero(close[top2.index + 1:] < neckline)
+        if below.size:
+            j = top2.index + 1 + int(below[0])
+            events.append(
+                PatternEvent("double_top", j, close_time[j], "bearish",
+                             {"top1_index": top1.index, "top2_index": top2.index, "neckline": neckline})
+            )
     return events
 
 
@@ -58,6 +64,8 @@ def detect_double_bottom(df: pd.DataFrame, lookback: int = 2, price_tolerance_pc
     swings = find_swing_points(df, lookback=lookback)
     lows = [s for s in swings if s.kind == "low"]
     highs = [s for s in swings if s.kind == "high"]
+    close = df["close"].to_numpy()
+    close_time = df["close_time"].to_numpy()
     events = []
     for i in range(len(lows) - 1):
         bot1, bot2 = lows[i], lows[i + 1]
@@ -67,13 +75,13 @@ def detect_double_bottom(df: pd.DataFrame, lookback: int = 2, price_tolerance_pc
         if not between_highs:
             continue
         neckline = max(h.price for h in between_highs)
-        for j in range(bot2.index + 1, len(df)):
-            if df["close"].iloc[j] > neckline:
-                events.append(
-                    PatternEvent("double_bottom", j, df["close_time"].iloc[j], "bullish",
-                                 {"bottom1_index": bot1.index, "bottom2_index": bot2.index, "neckline": neckline})
-                )
-                break
+        above = np.flatnonzero(close[bot2.index + 1:] > neckline)
+        if above.size:
+            j = bot2.index + 1 + int(above[0])
+            events.append(
+                PatternEvent("double_bottom", j, close_time[j], "bullish",
+                             {"bottom1_index": bot1.index, "bottom2_index": bot2.index, "neckline": neckline})
+            )
     return events
 
 
@@ -87,6 +95,8 @@ def detect_head_and_shoulders(df: pd.DataFrame, lookback: int = 2, shoulder_tole
     swings = find_swing_points(df, lookback=lookback)
     highs = [s for s in swings if s.kind == "high"]
     lows = [s for s in swings if s.kind == "low"]
+    close = df["close"].to_numpy()
+    close_time = df["close_time"].to_numpy()
     events = []
     for i in range(len(highs) - 2):
         left, head, right = highs[i], highs[i + 1], highs[i + 2]
@@ -98,13 +108,13 @@ def detect_head_and_shoulders(df: pd.DataFrame, lookback: int = 2, shoulder_tole
         if len(between) < 2:
             continue
         neckline = max(l.price for l in between)  # neckline is the line through the two intervening troughs
-        for j in range(right.index + 1, len(df)):
-            if df["close"].iloc[j] < neckline:
-                events.append(
-                    PatternEvent("head_and_shoulders", j, df["close_time"].iloc[j], "bearish",
-                                 {"left_shoulder": left.index, "head": head.index, "right_shoulder": right.index, "neckline": neckline})
-                )
-                break
+        below = np.flatnonzero(close[right.index + 1:] < neckline)
+        if below.size:
+            j = right.index + 1 + int(below[0])
+            events.append(
+                PatternEvent("head_and_shoulders", j, close_time[j], "bearish",
+                             {"left_shoulder": left.index, "head": head.index, "right_shoulder": right.index, "neckline": neckline})
+            )
     return events
 
 
@@ -113,6 +123,8 @@ def detect_inverse_head_and_shoulders(df: pd.DataFrame, lookback: int = 2, shoul
     swings = find_swing_points(df, lookback=lookback)
     lows = [s for s in swings if s.kind == "low"]
     highs = [s for s in swings if s.kind == "high"]
+    close = df["close"].to_numpy()
+    close_time = df["close_time"].to_numpy()
     events = []
     for i in range(len(lows) - 2):
         left, head, right = lows[i], lows[i + 1], lows[i + 2]
@@ -124,13 +136,13 @@ def detect_inverse_head_and_shoulders(df: pd.DataFrame, lookback: int = 2, shoul
         if len(between) < 2:
             continue
         neckline = min(h.price for h in between)
-        for j in range(right.index + 1, len(df)):
-            if df["close"].iloc[j] > neckline:
-                events.append(
-                    PatternEvent("inverse_head_and_shoulders", j, df["close_time"].iloc[j], "bullish",
-                                 {"left_shoulder": left.index, "head": head.index, "right_shoulder": right.index, "neckline": neckline})
-                )
-                break
+        above = np.flatnonzero(close[right.index + 1:] > neckline)
+        if above.size:
+            j = right.index + 1 + int(above[0])
+            events.append(
+                PatternEvent("inverse_head_and_shoulders", j, close_time[j], "bullish",
+                             {"left_shoulder": left.index, "head": head.index, "right_shoulder": right.index, "neckline": neckline})
+            )
     return events
 
 

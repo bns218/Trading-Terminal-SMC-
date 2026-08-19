@@ -1,4 +1,5 @@
 .venv/
+venv/
 __pycache__/
 *.pyc
 .env
@@ -7,6 +8,7 @@ logs/*.jsonl
 logs/????-??-??/
 cache/instruments/*.json
 !cache/instruments/.gitkeep
+cache/dhan_scrip_master.csv
 *.db
 *.db-wal
 *.db-shm

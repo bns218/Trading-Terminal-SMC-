@@ -7,33 +7,53 @@
 </head>
 <body>
   <div id="demo-banner">DEMO DATA — NOT LIVE MARKET DATA — for UI demonstration only</div>
-  <header>
-    <div>
-      <h1>Trading Terminal <span class="mode-badge" id="mode-badge">PAPER</span></h1>
-    </div>
-    <div id="controls">
-      <input id="token-input" placeholder="Instrument token" />
-      <select id="timeframe-select">
-        <option value="1min">1m</option>
-        <option value="3min">3m</option>
-        <option value="5min">5m</option>
-        <option value="15min">15m</option>
-        <option value="30min">30m</option>
-        <option value="60min">60m</option>
-      </select>
-      <button id="load-btn">Load</button>
-      <button id="kill-switch-btn">Kill Switch: OFF</button>
-    </div>
-  </header>
 
-  <main>
+  <div id="home-page">
+    <header>
+      <h1>Trading Terminal <span class="mode-badge" id="mode-badge-home">PAPER</span></h1>
+      <input id="home-filter" placeholder="Filter symbols..." />
+      <button id="home-refresh-btn" title="Refresh quotes">&#8635;</button>
+    </header>
+    <div id="home-groups"></div>
+  </div>
+
+  <div id="chart-page" style="display:none">
+    <header>
+      <div>
+        <button id="back-to-home-btn" title="Back to symbol list">&larr; Symbols</button>
+        <h1>Trading Terminal <span class="mode-badge" id="mode-badge">PAPER</span></h1>
+      </div>
+      <div id="controls">
+        <input id="token-input" placeholder="Instrument token" />
+        <select id="timeframe-select">
+          <option value="1min">1m</option>
+          <option value="3min">3m</option>
+          <option value="5min">5m</option>
+          <option value="15min">15m</option>
+          <option value="30min">30m</option>
+          <option value="60min">60m</option>
+        </select>
+        <button id="zoom-in-btn" title="Zoom in">+</button>
+        <button id="zoom-out-btn" title="Zoom out">&minus;</button>
+        <button id="zoom-reset-btn" title="Reset zoom">Reset</button>
+        <button id="kill-switch-btn">Kill Switch: OFF</button>
+      </div>
+    </header>
+
+    <main>
     <div id="chart-panel">
+      <div id="data-range-label"></div>
       <canvas id="chart-canvas"></canvas>
       <div id="legend">
         <span><span class="legend-dot" style="background:#5b8def"></span>EMA 9</span>
         <span><span class="legend-dot" style="background:#e8b339"></span>EMA 20</span>
         <span><span class="legend-dot" style="background:#3ecf8e"></span>Bullish pattern</span>
         <span><span class="legend-dot" style="background:#ef5a5a"></span>Bearish pattern</span>
+        <span><span class="legend-swatch" style="background:rgba(62,207,142,0.28)"></span>Order block</span>
+        <span><span class="legend-swatch" style="background:rgba(239,90,90,0.22);border-style:dashed"></span>Breaker</span>
+        <span><span class="legend-swatch" style="background:rgba(91,141,239,0.20)"></span>FVG</span>
+        <span><span class="legend-dot" style="background:#4a90d9"></span>Premium/Discount</span>
+        <label><input type="checkbox" id="smc-pro-toggle" checked /> SMC Pro</label>
       </div>
     </div>
 
@@ -41,7 +61,8 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="positions">Positions</button>
         <button class="tab-btn" data-tab="journal">Journal</button>
-        <button class="tab-btn" data-tab="health">Data Health</button>
+        <button class="tab-btn" data-tab="news">News</button>
+        <button class="tab-btn" data-tab="patterns">Patterns</button>
       </div>
 
       <div id="positions" class="tab-panel active">
@@ -60,12 +81,18 @@
         <div id="journal-empty" class="empty-state" style="display:none">No trades yet.</div>
       </div>
 
-      <div id="health" class="tab-panel">
-        <div id="health-body"></div>
+      <div id="news" class="tab-panel">
+        <div id="news-body"></div>
+        <div id="news-empty" class="empty-state" style="display:none">No news found for this symbol.</div>
+      </div>
+
+      <div id="patterns" class="tab-panel">
+        <div id="patterns-content"></div>
       </div>
     </div>
-  </main>
+    </main>
+  </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=9"></script>
 </body>
 </html>
